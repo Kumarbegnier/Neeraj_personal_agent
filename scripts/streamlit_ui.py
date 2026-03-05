@@ -59,8 +59,8 @@ def _inject_css():
             --fs-brand-blue: #2563eb;
             --fs-brand-cyan: #22c1a6;
             --fs-card-border: rgba(255, 255, 255, 0.72);
-            --fs-user-bubble: linear-gradient(135deg, rgba(233, 246, 255, 0.92), rgba(224, 236, 255, 0.9));
-            --fs-bot-bubble: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(250, 243, 255, 0.9));
+            --fs-user-bubble: linear-gradient(135deg, rgba(255, 241, 244, 0.94), rgba(238, 242, 255, 0.92));
+            --fs-bot-bubble: linear-gradient(135deg, rgba(240, 249, 255, 0.95), rgba(236, 253, 245, 0.92));
         }
         .stApp {
             font-family: 'Inter', sans-serif;
@@ -146,12 +146,38 @@ def _inject_css():
             margin-bottom: 0.3rem;
             letter-spacing: -0.6px;
         }
+        .fs-title-animate {
+            display: inline-block;
+            background: linear-gradient(
+                90deg,
+                #0f172a 0%,
+                #2563eb 30%,
+                #ffffff 48%,
+                #22c1a6 64%,
+                #0f172a 100%
+            );
+            background-size: 220% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: fsTitleShine 1.7s linear infinite, fsTitleHop 1.25s ease-in-out infinite;
+            text-shadow: 0 6px 18px rgba(37, 99, 235, 0.18);
+        }
+        .fs-title-star {
+            display: inline-block;
+            margin-left: 8px;
+            color: #22c1a6;
+            font-size: 0.75em;
+            animation: fsTitleStar 0.95s ease-in-out infinite;
+            vertical-align: top;
+        }
         .fs-subtitle {
             font-size: 1.45rem;
             color: #22a3a3;
             font-weight: 800;
             font-style: italic;
             margin-bottom: 0.75rem;
+            animation: fsSubtitlePulse 0.9s ease-in-out infinite;
         }
         .fs-desc {
             font-size: 1.02rem;
@@ -338,7 +364,27 @@ def _inject_css():
             display: flex;
             align-items: center;
             justify-content: center;
-            animation: fsFloat 2.8s ease-in-out infinite, fsPulse 2.2s ease-in-out infinite;
+            animation: fsFloat 1.2s ease-in-out infinite, fsPulse 1s ease-in-out infinite;
+        }
+        .fs-cute-orb::before,
+        .fs-cute-orb::after {
+            content: "";
+            position: absolute;
+            left: -46px;
+            height: 7px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(255,255,255,0), rgba(219,234,254,0.95), rgba(255,255,255,0));
+            filter: blur(0.3px);
+            animation: fsWind 0.45s linear infinite;
+        }
+        .fs-cute-orb::before {
+            width: 34px;
+            top: 36px;
+        }
+        .fs-cute-orb::after {
+            width: 24px;
+            top: 68px;
+            animation-delay: 0.22s;
         }
         .fs-cute-face {
             width: 72px;
@@ -368,17 +414,51 @@ def _inject_css():
         .fs-spark.right { top: 16px; right: 12px; animation-delay: 0.5s; }
         @keyframes fsFloat {
             0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-8px); }
+            50% { transform: translateY(-10px); }
         }
         @keyframes fsPulse {
             0%, 100% { box-shadow: 0 18px 38px rgba(59, 130, 246, 0.3); }
             50% { box-shadow: 0 22px 46px rgba(34, 193, 166, 0.34); }
         }
+        @keyframes fsWind {
+            0% { transform: translateX(0); opacity: 0.15; }
+            30% { opacity: 0.9; }
+            100% { transform: translateX(74px); opacity: 0; }
+        }
         @keyframes fsBlink {
             0%, 100% { opacity: 0.5; transform: scale(0.9); }
             50% { opacity: 1; transform: scale(1.15); }
         }
+        @keyframes fsSubtitlePulse {
+            0%, 100% { opacity: 0.85; transform: translateY(0); }
+            50% { opacity: 1; transform: translateY(-2px); }
+        }
+        @keyframes fsTitleShine {
+            0% { background-position: 220% center; }
+            100% { background-position: -220% center; }
+        }
+        @keyframes fsTitleHop {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-2px); }
+        }
+        @keyframes fsTitleStar {
+            0%, 100% { transform: scale(0.9) rotate(0deg); opacity: 0.55; }
+            50% { transform: scale(1.12) rotate(10deg); opacity: 1; }
+        }
+        @keyframes fsUserBounce {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-3px) scale(1.03); }
+        }
+        @keyframes fsBotFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+        }
+        @keyframes fsBotGlow {
+            0%, 100% { box-shadow: 0 4px 14px rgba(15, 23, 42, 0.15); }
+            50% { box-shadow: 0 8px 20px rgba(59, 130, 246, 0.35); }
+        }
         [data-testid="stChatMessage"] {
+            position: relative;
             border-radius: 18px;
             border: 1px solid var(--fs-card-border);
             background: var(--fs-bot-bubble);
@@ -389,9 +469,29 @@ def _inject_css():
         }
         [data-testid="stChatMessageAvatarUser"] img,
         [data-testid="stChatMessageAvatarAssistant"] img {
+            width: 34px !important;
+            height: 34px !important;
             border-radius: 999px !important;
-            border: 2px solid rgba(255,255,255,0.82);
-            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.15);
+            border: 2px solid rgba(255,255,255,0.9);
+            box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14), 0 0 0 3px rgba(255,255,255,0.35);
+        }
+        [data-testid="stChatMessageAvatarUser"] img {
+            animation: fsUserBounce 2.4s ease-in-out infinite;
+            transform-origin: center;
+        }
+        [data-testid="stChatMessageAvatarAssistant"] img {
+            animation: fsBotFloat 2.8s ease-in-out infinite, fsBotGlow 2.2s ease-in-out infinite;
+            transform-origin: center;
+        }
+        [data-testid="stChatMessageAvatarUser"] {
+            background: radial-gradient(circle at 30% 30%, #fff, #ffe4ef 66%, #fbcfe8);
+            border-radius: 999px;
+            padding: 2px;
+        }
+        [data-testid="stChatMessageAvatarAssistant"] {
+            background: radial-gradient(circle at 30% 30%, #fff, #dbeafe 62%, #a7f3d0);
+            border-radius: 999px;
+            padding: 2px;
         }
         [data-testid="stChatMessageContent"] p {
             color: var(--fs-text-main);
@@ -402,8 +502,47 @@ def _inject_css():
             background: var(--fs-user-bubble);
             border-color: rgba(191, 219, 254, 0.9);
         }
+        div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"])::before {
+            content: "";
+            position: absolute;
+            left: -8px;
+            top: 14px;
+            width: 14px;
+            height: 14px;
+            border-left: 1px solid rgba(191, 219, 254, 0.9);
+            border-bottom: 1px solid rgba(191, 219, 254, 0.9);
+            background: #ffeff5;
+            border-bottom-left-radius: 10px;
+            transform: rotate(22deg);
+        }
         div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) {
             border-color: rgba(233, 213, 255, 0.85);
+        }
+        div[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"])::after {
+            content: "";
+            position: absolute;
+            left: -8px;
+            top: 14px;
+            width: 14px;
+            height: 14px;
+            border-left: 1px solid rgba(233, 213, 255, 0.85);
+            border-bottom: 1px solid rgba(233, 213, 255, 0.85);
+            background: #ecfff8;
+            border-bottom-left-radius: 10px;
+            transform: rotate(22deg);
+        }
+        [data-testid="stSpinner"] {
+            border-radius: 999px;
+            border: 1px solid #bfdbfe;
+            background: rgba(255,255,255,0.88);
+            padding: 4px 10px;
+            width: fit-content;
+            box-shadow: 0 6px 14px rgba(59, 130, 246, 0.16);
+        }
+        [data-testid="stSpinner"] p {
+            color: #2563eb !important;
+            font-weight: 600;
+            font-size: 0.92rem;
         }
         [data-testid="stChatInput"] input {
             min-height: 52px !important;
@@ -520,7 +659,7 @@ def main():
     st.markdown(
         f"""
         <div class="fs-hero">
-          <div class="fs-title">FlashSpace Chatbot</div>
+          <div class="fs-title"><span class="fs-title-animate">FlashSpace Chatbot</span><span class="fs-title-star">✦</span></div>
           <div class="fs-subtitle">Fast Support</div>
           <div class="fs-desc">Ask anything about workspaces, bookings, payments, invoices, and support.</div>
           <div class="fs-role-wrap">{_role_line(st.session_state.role_mode)}</div>
@@ -558,7 +697,7 @@ def main():
         st.markdown(prompt)
 
     with st.chat_message("assistant", avatar=FLASHSPACE_AVATAR):
-        with st.spinner("Thinking..."):
+        with st.spinner("Thinking a little..."):
             try:
                 role_hint = st.session_state.role_mode
                 query_with_role = f"[role_context={role_hint}] {prompt}"

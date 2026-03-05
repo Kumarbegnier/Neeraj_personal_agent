@@ -13,6 +13,8 @@
   <circle cx="18.7" cy="34.8" r="2.2" fill="#ffd1dc" opacity="0.9"/>
   <circle cx="45.3" cy="34.8" r="2.2" fill="#ffd1dc" opacity="0.9"/>
   <path d="M20 40c2.6 4.6 7.1 7.1 12 7.1s9.4-2.5 12-7.1" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="32" cy="18" r="2.2" fill="#d9fff7"/>
+  <path d="M32 20.2v3.2" stroke="#d9fff7" stroke-width="1.8" stroke-linecap="round"/>
   <path d="M12 18l2.4 1.2L16.2 22l1.2-2.8 2.8-1.2-2.8-1.2-1.2-2.8-1.8 2.8z" fill="#e7f3ff" opacity="0.95"/>
   <text x="32" y="16" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-weight="700" fill="#e6f7ff">FS</text>
 </svg>

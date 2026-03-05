@@ -1,0 +1,17 @@
+Relationship graph:
+{relationship_context}
+
+Role context:
+{role_context}
+
+Live lookup context:
+{live_lookup_context}
+
+Virtual business spaces context:
+{virtual_spaces_context}
+
+Retrieved context:
+{context}
+
+User question:
+{question}

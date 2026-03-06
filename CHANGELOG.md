@@ -1,21 +1,39 @@
 # Changelog
 
-All notable changes to this project are documented here.
+All notable changes are documented here in step-wise format.
 
-## 2026-03-06
+## 2026-03-06 | Documentation Foundation Release
 
-### Added
-- `README.md` with:
+### Step 1: `Project Bootstrap README`
+- Change type: `docs`
+- Summary: Added onboarding and usage documentation for quick setup.
+- Files:
+  - `README.md`
+- Includes:
   - project overview
-  - setup/run instructions
-  - environment variables
-  - API endpoint examples
-  - CLI usage
-- `docs/ARCHITECTURE.md` with:
-  - high-level system architecture diagram
-  - `/chat` request sequence diagram
-  - ingestion/data flow diagram
-  - component responsibilities and config dependencies
+  - setup and run commands
+  - environment variable reference
+  - API request/response examples
+  - CLI usage guide
 
-### Notes
-- Documentation update only. No runtime code behavior changed.
+### Step 2: `System Architecture Blueprint`
+- Change type: `docs`
+- Summary: Added complete architecture reference with diagrams.
+- Files:
+  - `docs/ARCHITECTURE.md`
+- Includes:
+  - component diagram
+  - `/chat` sequence flow
+  - ingestion pipeline flow
+  - configuration dependencies
+
+### Step 3: `Change Tracking Standardization`
+- Change type: `docs/process`
+- Summary: Introduced structured, named step tracking for every change batch.
+- Files:
+  - `CHANGELOG.md`
+
+### Impact
+- Runtime behavior: no change
+- API behavior: no change
+- Documentation clarity: improved

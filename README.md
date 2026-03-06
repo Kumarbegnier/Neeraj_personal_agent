@@ -150,3 +150,8 @@ Supports commands:
 
 Detailed architecture and flow diagrams:
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+
+## Change History
+
+Step-wise named updates:
+- [`CHANGELOG.md`](CHANGELOG.md)

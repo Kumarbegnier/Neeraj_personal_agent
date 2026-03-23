@@ -5,7 +5,7 @@ from typing import Any
 
 import streamlit as st
 
-from frontend.components.status_panels import render_empty_state
+from frontend.components.primitives import render_bullet_card, render_empty_state
 from frontend.utils.state import TranscriptEntry
 
 
@@ -24,7 +24,17 @@ def render_chat_workspace(
     if not messages:
         render_empty_state(
             "Chat workspace is ready.",
-            "Submit a prompt to start the research and execution loop.",
+            "Submit a prompt to start a routed conversation with planning, verification, memory updates, and trace visibility.",
+        )
+        render_bullet_card(
+            "Suggested starting prompts",
+            [
+                "Design a research workflow and explain the task graph.",
+                "Review a backend architecture and identify its main risks.",
+                "Plan a coding task and show which specialist should own each step.",
+            ],
+            empty_message="Prompt suggestions are not available.",
+            caption="These are safe starter prompts for exploring the runtime surface.",
         )
     else:
         for entry in messages:

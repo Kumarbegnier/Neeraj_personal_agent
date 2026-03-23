@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, MutableMapping
 
+from src.runtime.models import InteractionResponse
+
 from .config import FrontendConfig
 from .services.api_client import ApiClient, ApiClientError, RequestEnvelope
 from .utils.state import (
@@ -35,8 +37,7 @@ def refresh_health(state: MutableMapping[str, Any], client: ApiClient) -> bool:
         record_activity(state, "health_refresh", "Fetched backend health details.")
         return True
     except ApiClientError as exc:
-        set_error(state, str(exc))
-        record_activity(state, "health_error", str(exc))
+        _record_client_error(state, "health_error", exc)
         return False
 
 
@@ -47,8 +48,7 @@ def refresh_architecture(state: MutableMapping[str, Any], client: ApiClient) -> 
         record_activity(state, "architecture_refresh", "Fetched runtime architecture stages.")
         return True
     except ApiClientError as exc:
-        set_error(state, str(exc))
-        record_activity(state, "architecture_error", str(exc))
+        _record_client_error(state, "architecture_error", exc)
         return False
 
 
@@ -60,8 +60,7 @@ def refresh_runtime_catalogs(state: MutableMapping[str, Any], client: ApiClient)
         record_activity(state, "catalog_refresh", "Fetched agent and tool catalogs.")
         return True
     except ApiClientError as exc:
-        set_error(state, str(exc))
-        record_activity(state, "catalog_error", str(exc))
+        _record_client_error(state, "catalog_error", exc)
         return False
 
 
@@ -72,8 +71,7 @@ def refresh_audit_events(state: MutableMapping[str, Any], client: ApiClient, lim
         record_activity(state, "audit_refresh", "Fetched backend audit events.")
         return True
     except ApiClientError as exc:
-        set_error(state, str(exc))
-        record_activity(state, "audit_error", str(exc))
+        _record_client_error(state, "audit_error", exc)
         return False
 
 
@@ -88,8 +86,7 @@ def refresh_session_snapshot(state: MutableMapping[str, Any], client: ApiClient)
         record_activity(state, "session_refresh", "Fetched the latest session snapshot.")
         return True
     except ApiClientError as exc:
-        set_error(state, str(exc))
-        record_activity(state, "session_error", str(exc))
+        _record_client_error(state, "session_error", exc)
         return False
 
 
@@ -106,8 +103,7 @@ def preview_plan(
         refresh_audit_events(state, client)
         return True
     except ApiClientError as exc:
-        set_error(state, str(exc))
-        record_activity(state, "plan_error", str(exc))
+        _record_client_error(state, "plan_error", exc)
         return False
 
 
@@ -121,16 +117,14 @@ def submit_chat_prompt(
     append_message(state, "user", prompt)
     try:
         interaction = client.chat(_build_request(state, prompt))
-        sync_interaction(state, interaction)
-        append_message(
+        _finalize_interaction(
             state,
-            "assistant",
-            interaction.response,
-            caption=f"Agent: {interaction.assigned_agent} | Risk: {interaction.safety.risk_level}",
+            client,
+            interaction,
+            assistant_caption=f"Agent: {interaction.assigned_agent} | Risk: {interaction.safety.risk_level}",
+            activity_event="chat_turn",
+            activity_detail=f"Completed routed interaction via {interaction.assigned_agent}.",
         )
-        record_activity(state, "chat_turn", f"Completed routed interaction via {interaction.assigned_agent}.")
-        refresh_session_snapshot(state, client)
-        refresh_audit_events(state, client)
         return True
     except ApiClientError as exc:
         set_error(state, str(exc))
@@ -151,20 +145,17 @@ def approve_pending_request(
 
     try:
         interaction = client.execute(_build_request(state, prompt, approval_granted=True))
-        sync_interaction(state, interaction)
-        append_message(
+        _finalize_interaction(
             state,
-            "assistant",
-            interaction.response,
-            caption="Approved execution",
+            client,
+            interaction,
+            assistant_caption="Approved execution",
+            activity_event="approval_execute",
+            activity_detail="Approved and re-executed the pending request.",
         )
-        record_activity(state, "approval_execute", "Approved and re-executed the pending request.")
-        refresh_session_snapshot(state, client)
-        refresh_audit_events(state, client)
         return True
     except ApiClientError as exc:
-        set_error(state, str(exc))
-        record_activity(state, "approval_error", str(exc))
+        _record_client_error(state, "approval_error", exc)
         return False
 
 
@@ -192,3 +183,33 @@ def _build_request(
         selected_model=str(state["selected_model"]),
         approval_granted=approved,
     )
+
+
+def _finalize_interaction(
+    state: MutableMapping[str, Any],
+    client: ApiClient,
+    interaction: InteractionResponse,
+    *,
+    assistant_caption: str,
+    activity_event: str,
+    activity_detail: str,
+) -> None:
+    sync_interaction(state, interaction)
+    append_message(
+        state,
+        "assistant",
+        interaction.response,
+        caption=assistant_caption,
+    )
+    record_activity(state, activity_event, activity_detail)
+    refresh_session_snapshot(state, client)
+    refresh_audit_events(state, client)
+
+
+def _record_client_error(
+    state: MutableMapping[str, Any],
+    activity_event: str,
+    exc: ApiClientError,
+) -> None:
+    set_error(state, str(exc))
+    record_activity(state, activity_event, str(exc))

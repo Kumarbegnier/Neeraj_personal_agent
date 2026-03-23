@@ -14,6 +14,11 @@ service, config = bootstrap_page(
 
 render_runtime_notices(st.session_state)
 
+st.write(
+    "Adjust the frontend connection and local runtime preferences here. These controls update Streamlit "
+    "session state, which the UI uses for model choice, session identity, and approval behavior."
+)
+
 with st.form("frontend_settings"):
     model_options = list(config.model_options)
     selected_model = str(st.session_state["selected_model"])
@@ -42,7 +47,8 @@ if submitted:
 
 actions = st.columns(3)
 if actions[0].button("Refresh backend health", use_container_width=True):
-    refresh_health(st.session_state, service)
+    with st.spinner("Refreshing backend health..."):
+        refresh_health(st.session_state, service)
     st.rerun()
 if actions[1].button("Start new session", use_container_width=True):
     start_new_session(st.session_state)

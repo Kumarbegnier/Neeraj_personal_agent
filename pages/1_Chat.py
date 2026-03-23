@@ -22,21 +22,28 @@ from frontend.utils.state import current_memory
 
 service, _config = bootstrap_page(
     "Chat Workspace",
-    "Minimal conversation surface with planner, memory, execution, and audit visibility.",
+    "Primary research console for routed chat, plan previews, memory, execution, and audit visibility.",
 )
 
 render_runtime_notices(st.session_state)
 
+st.write(
+    "Use the chat surface for serious, instrumented conversations with the backend runtime. "
+    "The diagnostics panel keeps the planning, memory, execution, and log views attached to the active session."
+)
+
 toolbar = st.columns(4)
 if toolbar[0].button("Refresh session", use_container_width=True):
-    refresh_session_snapshot(st.session_state, service)
+    with st.spinner("Refreshing session snapshot..."):
+        refresh_session_snapshot(st.session_state, service)
     st.rerun()
 if toolbar[1].button(
     "Preview last plan",
     use_container_width=True,
     disabled=not bool(st.session_state.get("last_prompt")),
 ):
-    preview_plan(st.session_state, service, str(st.session_state["last_prompt"]))
+    with st.spinner("Generating planner preview..."):
+        preview_plan(st.session_state, service, str(st.session_state["last_prompt"]))
     st.rerun()
 if toolbar[2].button(
     "Approve pending",

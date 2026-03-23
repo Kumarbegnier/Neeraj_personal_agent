@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Literal
 from typing import Any
 
 from src.schemas.catalog import AgentDescriptor, AuditEvent, ToolDescriptor
@@ -15,6 +16,36 @@ from src.runtime.models import (
     TraceEvent,
 )
 from src.runtime.workflow import StageDescriptor
+
+
+def humanize_label(value: str) -> str:
+    return value.replace("_", " ").replace("-", " ").title() if value else "Unknown"
+
+
+def selected_agent_label(agent_key: str, agents: Sequence[AgentDescriptor] | None) -> str:
+    if not agent_key:
+        return "Awaiting routing"
+
+    for agent in agents or []:
+        if agent.key == agent_key:
+            return agent.display_name
+    return humanize_label(agent_key)
+
+
+def streamlit_status_state(status: str) -> Literal["running", "complete", "error"]:
+    normalized = status.strip().lower()
+    if normalized in {"complete", "completed", "success", "verified", "ready", "clear"}:
+        return "complete"
+    if normalized in {"blocked", "failed", "error", "rejected"}:
+        return "error"
+    return "running"
+
+
+def compact_text(value: str, *, limit: int = 220) -> str:
+    normalized = " ".join(value.split())
+    if len(normalized) <= limit:
+        return normalized
+    return f"{normalized[: limit - 3].rstrip()}..."
 
 
 def summarize_memory(memory: MemorySnapshot | None) -> str:

@@ -16,14 +16,22 @@ service, _config = bootstrap_page(
 render_runtime_notices(st.session_state)
 
 if not st.session_state.get("audit_events"):
-    refresh_audit_events(st.session_state, service)
+    with st.spinner("Loading audit events..."):
+        refresh_audit_events(st.session_state, service)
+
+st.write(
+    "This page provides the evidence trail for a run: traces, tool-level output, state transitions, "
+    "backend audit records, and the local frontend activity log."
+)
 
 controls = st.columns(2)
 if controls[0].button("Refresh session snapshot", use_container_width=True):
-    refresh_session_snapshot(st.session_state, service)
+    with st.spinner("Refreshing session snapshot..."):
+        refresh_session_snapshot(st.session_state, service)
     st.rerun()
 if controls[1].button("Refresh audit trail", use_container_width=True):
-    refresh_audit_events(st.session_state, service)
+    with st.spinner("Refreshing audit trail..."):
+        refresh_audit_events(st.session_state, service)
     st.rerun()
 
 render_logs_panel(

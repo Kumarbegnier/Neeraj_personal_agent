@@ -16,8 +16,14 @@ service, _config = bootstrap_page(
 
 render_runtime_notices(st.session_state)
 
+st.write(
+    "Use this page to inspect how the runtime is grounding itself: the active working memory object, "
+    "retrieved records, semantic traces, and durable session history."
+)
+
 if st.button("Refresh session snapshot", use_container_width=True):
-    refresh_session_snapshot(st.session_state, service)
+    with st.spinner("Refreshing session snapshot..."):
+        refresh_session_snapshot(st.session_state, service)
     st.rerun()
 
 memory = current_memory(st.session_state)

@@ -1,133 +1,119 @@
 # Neeraj AI OS
 
-Neeraj AI OS is a research-grade personal AI agent platform built as a stateful cognitive runtime, not a chatbot. The system treats the LLM as one component inside a larger architecture that includes planning, memory, tool use, verification, reflection, safety gating, audit logging, and modular specialist orchestration.
+Neeraj AI OS is a stateful personal AI agent platform built as a runtime system, not just a chatbot wrapper. It combines planning, specialist routing, tool execution, memory, verification, reflection, and audit logging so the model operates inside a governed workflow instead of a single prompt-response loop.
 
-## Project Overview
+## What This Project Is
 
-The platform is designed around a closed-loop agent runtime:
+This repository is designed for building a personal AI system that can:
 
-`observe -> control -> plan -> route -> agent decide -> execute -> verify -> reflect -> update state`
+- understand a user request in context
+- break work into steps
+- route work to the right specialist agent
+- use tools in a structured way
+- verify its own outputs
+- update memory and runtime state across turns
 
-Key properties:
+The result is a more deliberate, inspectable, and extensible agent architecture than a typical chat app.
 
-- Single evolving `AgentState` for runtime control.
-- Specialized agents for communication, coding, research, browser, task, and file workflows.
-- Shared tool registry with structured tool calls and structured results.
-- Working memory in runtime state, episodic memory in MongoDB, semantic memory through a FAISS-compatible abstraction.
-- Verification and reflection are binding, not decorative.
-- Audit logging records every agent step and tool call.
-- FastAPI exposes health, planning, chat, and execution APIs.
+## Why It Feels More Advanced Than a Basic Chatbot
 
-## Architecture Overview
+Most chatbot projects stop at:
 
-The platform is organized into the following layers:
+`user input -> model -> answer`
 
-1. Interface layer
-   FastAPI endpoints under `src/api`.
-2. Backend runtime facade
-   `src/runtime` re-exports the active orchestration contracts and workflow metadata used by the backend and frontend.
-3. Session and context layer
-   Gateway headers, request normalization, session permissions, and context construction.
-4. Orchestrator
-   The closed-loop controller in `agent_runtime/orchestrator.py`.
-5. Planner
-   Builds ordered, typed plans with verification focus and failure modes.
-6. Executor / router
-   Selects the right specialist and executes via the shared registry.
-7. Specialized agents
-   Communication, Coding, Research, Browser, Task, and File agents.
-8. Tool abstraction layer
-   Shared tool registry with starter tools and structured outputs.
-9. Memory system
-   Working memory, Mongo-backed episodic memory, semantic lookup, and a dedicated `MemoryManager`.
-10. Reflection / verification layer
-   Deterministic validation and one-step retry / replan signaling.
-11. Safety / permissions layer
-   Risk classification, approval gates, policy checks, and backend audit-log access.
-12. Audit / observability layer
-   Trace events, state transitions, tool-call logging, and typed audit event retrieval.
+This project uses a closed-loop runtime:
 
-## Folder Structure
+`observe -> control -> plan -> route -> decide -> execute -> verify -> reflect -> update state`
 
-```text
-main.py
-requirements.txt
-.env.example
-README.md
-ingest.py
+That gives you a system that is better suited for:
 
-src/
-  api/
-  core/
-  graph/
-  agents/
-  tools/
-  memory/
-  runtime/
-  schemas/
-  services/
-  safety/
-  utils/
+- multi-step tasks
+- specialist delegation
+- memory-aware workflows
+- safety and permission checks
+- auditability and future production hardening
 
-agent_runtime/
-  orchestrator.py
-  models.py
-  context_hub.py
-  specialists/
-  control.py
-  planner.py
-  router.py
-  router_executor.py
-  execution.py
-  agents.py
-  tools.py
-  verification.py
-  reflection.py
-  safety.py
-  responder.py
-  memory.py
-  response_helpers.py
-  runtime_utils.py
+## Core Capabilities
 
-frontend/
-  bootstrap.py
-  config.py
-  controller.py
-  view_models.py
-  services/
-    api_client.py
-  components/
-    chat_view.py
-    sidebar.py
-    status_panels.py
-  utils/
-    state.py
+- Stateful orchestration through a shared `AgentState`
+- Multiple specialists for coding, communication, research, browser, task, file, and general work
+- Shared tool registry with typed metadata and structured results
+- FastAPI backend for health, planning, chat, execution, audit, tools, and agent catalog access
+- Streamlit frontend for local interaction, inspection, and runtime visibility
+- MongoDB-backed episodic memory support
+- Verification and reflection loops that can trigger retry or replanning
+- Safe local fallback behavior when external credentials are missing
 
-pages/
-  1_Chat.py
-  2_Agents.py
-  3_Memory.py
-  4_Logs.py
-  5_Settings.py
+## System Flow
 
-app.py
-.streamlit/config.toml
+```mermaid
+flowchart LR
+    A[User Request] --> B[Context + Permissions]
+    B --> C[Planner]
+    C --> D[Router]
+    D --> E[Specialist Agent]
+    E --> F[Tool Execution]
+    F --> G[Verification]
+    G --> H[Reflection]
+    H --> I[State + Memory Update]
+    I --> J[Final Response]
 ```
 
-## Core Runtime Design
+## Architecture At a Glance
 
-The live agent runtime lives in `agent_runtime/` and uses explicit causal closure:
+| Layer | Purpose |
+| --- | --- |
+| `src/api` | FastAPI routes and request handling |
+| `src/services` | Orchestration service and lifecycle management |
+| `src/runtime` | Stable facade exposed to backend and frontend |
+| `agent_runtime` | Live stateful runtime and orchestration loop |
+| `agent_runtime/specialists` | Concrete specialist agent behavior |
+| `src/tools` | Tool catalog and tool adapter surface |
+| `src/memory` | Memory lifecycle, retrieval, and persistence |
+| `src/safety` | Approvals, audit, and validation helpers |
+| `frontend` + `pages` | Streamlit UI for chat, logs, memory, and status |
 
-- `S_{t+1} = F(S_t, O_t)`
-- each iteration records a `StateTransition`
-- verification can force retry or replanning
-- reflection mutates `adaptive_constraints`, `blocked_tools`, and `route_bias`
-- memory retrieval affects planning and routing
-- final response generation happens only after loop termination
+The important design choice is that `src/` provides a stable application-facing surface, while `agent_runtime/` contains the active runtime internals.
 
-## Specialized Agents
+## Repository Structure
 
-The platform includes:
+```text
+main.py                  FastAPI entrypoint
+app.py                   Streamlit entrypoint
+README.md                Project overview
+ARCHITECTURE.md          Technical architecture guide
+
+src/
+  api/                   HTTP routes and dependencies
+  agents/                Typed agent catalog
+  core/                  Config, logging, permissions
+  graph/                 Graph and state facades
+  memory/                Episodic and semantic memory helpers
+  runtime/               Stable runtime contracts
+  safety/                Approvals, validation, audit helpers
+  schemas/               Shared API and catalog models
+  services/              Orchestration and LLM integration
+  tools/                 Tool catalog and adapters
+  utils/                 Shared utility helpers
+
+agent_runtime/
+  orchestrator.py        Main closed-loop runtime
+  models.py              Shared runtime state models
+  planner.py             Planning logic
+  router.py              Specialist selection
+  execution.py           Tool execution flow
+  verification.py        Output validation and retry signals
+  reflection.py          Runtime repair and adaptation
+  memory.py              Runtime memory wiring
+  specialists/           Domain-specific agents
+
+frontend/
+pages/
+```
+
+## Specialists
+
+The platform includes the following specialist agents:
 
 - `CommunicationAgent`
 - `CodingAgent`
@@ -137,70 +123,28 @@ The platform includes:
 - `FileAgent`
 - `GeneralAgent`
 
-Each specialist exposes a consistent interface and uses the shared tool layer rather than direct ad hoc calls.
+Each specialist is isolated behind a shared orchestration contract so the runtime can route tasks without hardcoding behavior into one large agent file.
 
-The implementation now keeps three layers aligned:
+## API Surface
 
-- `src/agents/catalog.py` defines the typed agent catalog used by the backend and frontend.
-- `agent_runtime/specialists/` contains the live specialist behavior used by the orchestrator.
-- `agent_runtime/agents.py` keeps the public import path stable as a compatibility facade.
+Main routes:
 
-## Shared Tool Registry
-
-The shared registry includes:
-
-- memory surfaces such as `session_history`, `semantic_memory`, `vector_memory`, `working_memory`, and `save_memory`
-- planning and safety surfaces such as `capability_map`, `plan_analyzer`, `verification_harness`, and `risk_monitor`
-- integration surfaces such as `github_adapter`, `calendar_adapter`, `document_adapter`, and `browser_adapter`
-- `send_email_draft`
-- `search_web`
-- `browser_search`
-- `load_recent_memory`
-- `summarize_file`
-- `generate_code`
-- `open_page`
-- `extract_page_text`
-- `create_task_record`
-
-These tools return structured results and fail gracefully when external dependencies or credentials are absent.
-
-The typed tool catalog now lives in `src/tools/catalog.py`, which is shared by the runtime, API layer, and Streamlit frontend.
-
-## API Endpoints
-
+- `GET /`
 - `GET /health`
+- `GET /status`
+- `GET /architecture`
 - `GET /agents`
 - `GET /tools`
 - `GET /audit/logs`
+- `GET /sessions/{user_id}/{session_id}`
 - `POST /chat`
 - `POST /plan`
 - `POST /execute`
-
-Compatibility routes are also preserved:
-
-- `GET /status`
-- `GET /architecture`
-- `GET /sessions/{user_id}/{session_id}`
 - `POST /interactions`
 
-The Streamlit frontend uses the backend API to provide:
+## Quick Start
 
-- chat workspace
-- planner / task breakdown
-- memory / context review
-- agent status / execution review
-- logs / audit review
-- settings and session controls
-
-The backend now also exposes typed runtime metadata for:
-
-- specialist catalog inspection
-- shared tool registry inspection
-- recent audit event retrieval
-
-## Local Setup
-
-### 1. Create a virtual environment
+### 1. Create and activate a virtual environment
 
 ```powershell
 python -m venv .venv
@@ -213,48 +157,33 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### 3. Copy environment variables
+### 3. Create your environment file
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-### 4. Install Playwright browser binaries
+### 4. Install browser support
 
 ```powershell
 playwright install chromium
 ```
 
-### 5. Run the API
+### 5. Start the API
 
 ```powershell
 uvicorn main:app --reload
 ```
 
-The app is designed to run locally on Windows with:
-
-```powershell
-uvicorn main:app --reload
-```
-
-### 6. Run the Streamlit frontend
-
-Start the backend first, then launch the research console:
+### 6. Start the frontend
 
 ```powershell
 streamlit run app.py
 ```
 
-By default the frontend targets `http://127.0.0.1:8000`. You can override that with:
+By default, the Streamlit frontend talks to `http://127.0.0.1:8000`.
 
-```powershell
-$env:NEERAJ_API_URL="http://127.0.0.1:8000"
-streamlit run app.py
-```
-
-## Environment Variables
-
-Important settings:
+## Important Environment Variables
 
 - `OPENAI_API_KEY`
 - `OPENAI_CHAT_MODEL`
@@ -271,49 +200,17 @@ Important settings:
 - `NEERAJ_API_URL`
 - `NEERAJ_API_TIMEOUT_SECONDS`
 
-If `OPENAI_API_KEY` or the Agents SDK is unavailable, the platform still runs in deterministic local mode.
-
-## MongoDB Setup
-
-For local development, a local MongoDB instance is enough:
-
-```powershell
-docker run -d --name neeraj-mongo -p 27017:27017 mongo:7
-```
-
-Then set:
-
-```env
-MONGODB_URI=mongodb://localhost:27017
-MONGODB_DB_NAME=neeraj_ai_os
-```
-
-MongoDB is used for:
-
-- durable episodic memory
-- task outcome logs
-- future expansion to richer long-term memory
-
-## Playwright Setup
-
-Install Playwright and browser binaries:
-
-```powershell
-pip install playwright
-playwright install chromium
-```
-
-The current code exposes browser-first tool abstractions and safe placeholders. This keeps the platform runnable even before live browser automation is fully wired.
+If OpenAI credentials or optional services are missing, the project still runs in a deterministic local mode with graceful fallbacks.
 
 ## Example Requests
 
-### Health
+### Health check
 
 ```powershell
 curl http://127.0.0.1:8000/health
 ```
 
-### Plan
+### Plan a task
 
 ```powershell
 curl -X POST http://127.0.0.1:8000/plan ^
@@ -321,7 +218,7 @@ curl -X POST http://127.0.0.1:8000/plan ^
   -d "{\"user_id\":\"demo\",\"session_id\":\"plan-1\",\"channel\":\"text\",\"message\":\"Design a modular personal AI agent platform.\"}"
 ```
 
-### Chat
+### Run a chat interaction
 
 ```powershell
 curl -X POST http://127.0.0.1:8000/chat ^
@@ -329,44 +226,27 @@ curl -X POST http://127.0.0.1:8000/chat ^
   -d "{\"user_id\":\"demo\",\"session_id\":\"chat-1\",\"channel\":\"text\",\"message\":\"Build a research-grade coding agent architecture.\"}"
 ```
 
-### Execute
+## Tech Stack
 
-```powershell
-curl -X POST http://127.0.0.1:8000/execute ^
-  -H "Content-Type: application/json" ^
-  -d "{\"user_id\":\"demo\",\"session_id\":\"exec-1\",\"channel\":\"text\",\"message\":\"Create a plan and execute a browser-assisted research workflow.\"}"
-```
+- Python
+- FastAPI
+- Streamlit
+- OpenAI SDK
+- OpenAI Agents SDK integration layer
+- MongoDB
+- Playwright
+- LangChain ecosystem components
 
-## OpenAI Agents SDK Integration
+## Current Direction
 
-The project includes a lightweight integration layer in `src/services/llm_service.py` that follows OpenAI Agents SDK idioms:
+This codebase is already structured like a serious agent platform, but some external tool integrations are still intentionally conservative. The next major jump is turning the placeholder-safe tool surfaces into live search, browser, and execution adapters with stronger production-style evaluation and safety gates.
 
-- build SDK agents from structured specialist definitions
-- support OpenAI Responses-compatible models
-- degrade safely when SDK dependencies or credentials are missing
+## Best Next Improvements
 
-This keeps the architecture extensible without making the first version depend on always-online model execution.
+- Replace stubbed browser and search tools with live adapters
+- Add stronger automated evaluation for multi-step workflows
+- Expand memory persistence and retrieval quality
+- Increase human approval and policy controls for sensitive actions
+- Add richer frontend traces for debugging agent decisions
 
-## Observability
-
-The platform records:
-
-- per-stage trace events
-- per-iteration state transitions
-- tool-call audit events
-- durable interaction logs
-- typed audit events exposed through `GET /audit/logs`
-
-This supports debugging, evaluation, and future production tracing integrations.
-
-## Roadmap
-
-- Replace stubbed search and browser tools with live OpenAI / Playwright-backed integrations.
-- Add durable semantic vector persistence behind the FAISS-compatible abstraction.
-- Add real OpenAI Agents SDK function tools and handoffs for specialist delegation.
-- Expand safety guardrails and human approval workflows.
-- Add evaluation harnesses and regression tests for multi-step agent workflows.
-
-## First Recommended Next Step
-
-Implement live external tool adapters for `search_web`, `browser_search`, `open_page`, and `extract_page_text`, then connect them to real OpenAI Agents SDK function tools and Playwright browser sessions. That will convert the current research-grade architecture from a safe local platform into a genuinely operational personal AI agent system.
+For the deeper technical view, see `ARCHITECTURE.md`.

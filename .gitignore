@@ -1,43 +1,12 @@
+venv/
 .venv/
-.env
-__pycache__/
 *.pyc
-.idea/
-
-# Secrets
-.env
-ai-agent-backend/.env
-*.pem
-
-# Local data (do not commit)
-# data.json
-
-# Python
 __pycache__/
-*.pyc
-
-# Virtual envs
-.venv/
-ai-agent-backend/venv/
-venv
-
-tt.sql
-
-./tt.sql
-./chat.db
-
-
 .env
-ai-agent-backend/.env
-*.pem
-
-# Local data (do not commit)
-data.json
-
-# Python
-__pycache__/
-*.pyc
-
-# Virtual envs
-.venv/
-ai-agent-backend/venv/
+.DS_Store
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+audit.log
+.streamlit/secrets.toml

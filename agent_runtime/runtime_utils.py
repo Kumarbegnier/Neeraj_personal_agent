@@ -3,7 +3,9 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
-from .models import AgentState
+from src.services.modeling.types import StructuredGenerationResult
+
+from .models import AgentState, ModelEvaluationRecord, ModelExecutionRecord, TraceEvent
 
 
 def dedupe_preserve_order(items: Iterable[str]) -> list[str]:
@@ -39,3 +41,55 @@ def lowercase_surface(parts: Iterable[str]) -> str:
 
 def tokenize_words(text: str) -> set[str]:
     return {token for token in re.findall(r"[a-z0-9_]+", text.lower()) if len(token) > 2}
+
+
+def selected_model_override(state: AgentState) -> str | None:
+    selected = state.request.preferences.get("selected_model")
+    if not selected:
+        return None
+    return str(selected).strip() or None
+
+
+def record_model_result(state: AgentState, result: StructuredGenerationResult) -> None:
+    state.model_runs.append(
+        ModelExecutionRecord(
+            task_type=result.run.task_type,
+            stage=result.run.stage,
+            provider=result.run.provider,
+            model=result.run.model,
+            status=result.run.status,
+            source=result.run.source,
+            latency_ms=result.run.latency_ms,
+            used_fallback=result.run.used_fallback,
+            reason=result.run.reason,
+            candidate_models=list(result.run.candidate_models),
+            metadata=dict(result.run.metadata),
+        )
+    )
+    state.model_evaluations.append(
+        ModelEvaluationRecord(
+            task_type=result.evaluation.task_type,
+            provider=result.evaluation.provider,
+            model=result.evaluation.model,
+            score=result.evaluation.score,
+            notes=list(result.evaluation.notes),
+            compared_models=list(result.evaluation.compared_models),
+            metadata=dict(result.evaluation.metadata),
+        )
+    )
+    state.trace.append(
+        TraceEvent(
+            stage=f"Model Runtime / {result.run.stage}",
+            detail=(
+                f"Task '{result.run.task_type}' routed to provider '{result.run.provider}' "
+                f"using model '{result.run.model}' with source '{result.run.source}'."
+            ),
+            payload={
+                "status": result.run.status,
+                "used_fallback": result.run.used_fallback,
+                "latency_ms": result.run.latency_ms,
+                "reason": result.run.reason,
+                "candidate_models": list(result.run.candidate_models),
+            },
+        )
+    )

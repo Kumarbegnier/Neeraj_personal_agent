@@ -1,11 +1,51 @@
 from __future__ import annotations
 
+import json
+
+from src.services.llm_service import LLMService
+from src.services.modeling.types import ModelTaskType
+
 from .models import AgentState, ReflectionReport
-from .runtime_utils import dedupe_preserve_order
+from .runtime_utils import dedupe_preserve_order, record_model_result, selected_model_override
 
 
 class ReflectionEngine:
+    def __init__(self, llm_service: LLMService | None = None) -> None:
+        self._llm_service = llm_service
+
     def review(self, state: AgentState) -> ReflectionReport:
+        fallback = self._fallback_report(state)
+        if self._llm_service is None:
+            self._apply_to_state(state, fallback)
+            return fallback
+
+        model_result = self._llm_service.generate_structured(
+            task_type=ModelTaskType.REFLECTION,
+            stage="reflection",
+            output_type=ReflectionReport,
+            system_prompt=(
+                "You are the reflection model for a hybrid multi-model runtime. "
+                "Translate verification gaps into concrete repairs, route bias, and blocked tool guidance."
+            ),
+            user_prompt="\n".join(
+                [
+                    f"Objective: {state.request.message}",
+                    f"Verification gaps: {json.dumps(state.verification.gaps if state.verification else [], ensure_ascii=True)}",
+                    f"Unverified claims: {json.dumps(state.verification.unverified_claims if state.verification else [], ensure_ascii=True)}",
+                    f"Recent tool statuses: {json.dumps([result.status for result in state.last_tool_results], ensure_ascii=True)}",
+                    f"Fallback reflection: {fallback.model_dump_json()}",
+                ]
+            ),
+            fallback_output=fallback,
+            selected_model=selected_model_override(state),
+            metadata={"step_index": state.step_index},
+        )
+        record_model_result(state, model_result)
+        report = ReflectionReport.model_validate(model_result.output.model_dump())
+        self._apply_to_state(state, report)
+        return report
+
+    def _fallback_report(self, state: AgentState) -> ReflectionReport:
         if state.execution is None or state.verification is None:
             raise ValueError("Execution and verification must exist before reflection.")
 
@@ -71,8 +111,6 @@ class ReflectionEngine:
             route_bias=route_bias,
             blocked_tools=dedupe_preserve_order(blocked_tools),
         )
-
-        self._apply_to_state(state, report)
         return report
 
     def _apply_to_state(self, state: AgentState, report: ReflectionReport) -> None:

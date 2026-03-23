@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from src.services.modeling.types import ModelTaskType
+
 from ..models import AgentDecision, AgentState, ExecutionResult, SkillDescriptor, ToolResult
 from .base import BaseAgent
 from .common import (
@@ -14,8 +16,9 @@ from .common import (
 
 class CodingAgent(BaseAgent):
     name = "coding"
+    decision_task_type = ModelTaskType.REASONING
 
-    def decide(self, state: AgentState, skills: list[SkillDescriptor]) -> AgentDecision:
+    def build_decision(self, state: AgentState, skills: list[SkillDescriptor]) -> AgentDecision:
         retrieved_memory = memory_text(state)
         requests = [
             tool_request("working_memory", "Load distilled constraints and retrieved facts.", priority=1),

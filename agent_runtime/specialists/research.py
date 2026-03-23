@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from src.services.modeling.types import ModelTaskType
+
 from ..models import AgentDecision, AgentState, ExecutionResult, SkillDescriptor, ToolResult
 from .base import BaseAgent
 from .common import build_execution_result, filter_blocked_requests, skill_names, status_counts, tool_request
@@ -7,8 +9,9 @@ from .common import build_execution_result, filter_blocked_requests, skill_names
 
 class ResearchAgent(BaseAgent):
     name = "research"
+    decision_task_type = ModelTaskType.RESEARCH
 
-    def decide(self, state: AgentState, skills: list[SkillDescriptor]) -> AgentDecision:
+    def build_decision(self, state: AgentState, skills: list[SkillDescriptor]) -> AgentDecision:
         requests = [
             tool_request("working_memory", "Load retrieved facts and open questions.", priority=1),
             tool_request("vector_memory", "Retrieve prior evidence fragments.", priority=2),

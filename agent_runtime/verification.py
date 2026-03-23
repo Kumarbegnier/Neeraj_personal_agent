@@ -1,11 +1,48 @@
 from __future__ import annotations
 
+import json
+
+from src.services.llm_service import LLMService
+from src.services.modeling.types import ModelTaskType
+
 from .models import AgentState, VerificationCheck, VerificationReport
-from .runtime_utils import tokenize_words
+from .runtime_utils import record_model_result, selected_model_override, tokenize_words
 
 
 class VerificationEngine:
+    def __init__(self, llm_service: LLMService | None = None) -> None:
+        self._llm_service = llm_service
+
     def verify(self, state: AgentState) -> VerificationReport:
+        fallback = self._fallback_report(state)
+        if self._llm_service is None:
+            return fallback
+
+        model_result = self._llm_service.generate_structured(
+            task_type=ModelTaskType.REASONING,
+            stage="verification",
+            output_type=VerificationReport,
+            system_prompt=(
+                "You are the verification and reasoning model for a hybrid multi-model agent system. "
+                "Return a structured verification report that is evidence-aware and strict about grounding."
+            ),
+            user_prompt="\n".join(
+                [
+                    f"Objective: {state.request.message}",
+                    f"Latest execution summary: {state.execution.summary if state.execution else ''}",
+                    f"Tool statuses: {json.dumps([result.status for result in state.last_tool_results], ensure_ascii=True)}",
+                    f"Claims to verify: {json.dumps(state.execution.claims if state.execution else [], ensure_ascii=True)}",
+                    f"Fallback verification: {fallback.model_dump_json()}",
+                ]
+            ),
+            fallback_output=fallback,
+            selected_model=selected_model_override(state),
+            metadata={"step_index": state.step_index},
+        )
+        record_model_result(state, model_result)
+        return VerificationReport.model_validate(model_result.output.model_dump())
+
+    def _fallback_report(self, state: AgentState) -> VerificationReport:
         if state.plan is None or state.decision is None or state.execution is None:
             raise ValueError("Plan, decision, and execution must exist before verification.")
 

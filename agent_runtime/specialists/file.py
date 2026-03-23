@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from src.services.modeling.types import ModelTaskType
+
 from ..models import AgentDecision, AgentState, ExecutionResult, SkillDescriptor, ToolResult
 from .base import BaseAgent
 from .common import build_execution_result, filter_blocked_requests, skill_names, status_counts, tool_request
@@ -7,8 +9,9 @@ from .common import build_execution_result, filter_blocked_requests, skill_names
 
 class FileAgent(BaseAgent):
     name = "file"
+    decision_task_type = ModelTaskType.REASONING
 
-    def decide(self, state: AgentState, skills: list[SkillDescriptor]) -> AgentDecision:
+    def build_decision(self, state: AgentState, skills: list[SkillDescriptor]) -> AgentDecision:
         requests = [
             tool_request(
                 "summarize_file",

@@ -313,6 +313,30 @@ class ReflectionReport(BaseModel):
     blocked_tools: list[str] = Field(default_factory=list)
 
 
+class ModelExecutionRecord(BaseModel):
+    task_type: str
+    stage: str
+    provider: str
+    model: str
+    status: str
+    source: str = "fallback"
+    latency_ms: int = 0
+    used_fallback: bool = True
+    reason: str = ""
+    candidate_models: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ModelEvaluationRecord(BaseModel):
+    task_type: str
+    provider: str
+    model: str
+    score: float = 0.0
+    notes: list[str] = Field(default_factory=list)
+    compared_models: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class PermissionDecision(BaseModel):
     mode: PermissionMode
     requires_confirmation: bool = False
@@ -350,6 +374,12 @@ class TraceEvent(BaseModel):
     stage: str
     detail: str
     payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class StructuredResponse(BaseModel):
+    response: str
+    highlights: list[str] = Field(default_factory=list)
+    approval_note: str = ""
 
 
 class ObservationRecord(BaseModel):
@@ -408,6 +438,8 @@ class AgentState(BaseModel):
     verification: VerificationReport | None = None
     reflection: ReflectionReport | None = None
     safety: SafetyReport | None = None
+    model_runs: list[ModelExecutionRecord] = Field(default_factory=list)
+    model_evaluations: list[ModelEvaluationRecord] = Field(default_factory=list)
     observations: list[ObservationRecord] = Field(default_factory=list)
     reasoning_notes: list[str] = Field(default_factory=list)
     state_transitions: list[StateTransition] = Field(default_factory=list)
@@ -440,6 +472,8 @@ class InteractionResponse(BaseModel):
     trace: list[TraceEvent] = Field(default_factory=list)
     tool_results: list[ToolResult] = Field(default_factory=list)
     state_transitions: list[StateTransition] = Field(default_factory=list)
+    model_runs: list[ModelExecutionRecord] = Field(default_factory=list)
+    model_evaluations: list[ModelEvaluationRecord] = Field(default_factory=list)
     state_id: str
     loop_count: int = 0
     termination_reason: str = ""

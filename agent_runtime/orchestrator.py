@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dotenv import load_dotenv
 
+from src.services.llm_service import LLMService
+
 from .agents import build_agent_registry
 from .context_builder import ContextBuilder
 from .control import OrchestratorBrain
@@ -258,6 +260,8 @@ class Orchestrator:
             trace=state.trace,
             tool_results=state.tool_history,
             state_transitions=state.state_transitions,
+            model_runs=state.model_runs,
+            model_evaluations=state.model_evaluations,
             state_id=state.state_id,
             loop_count=state.step_index,
             termination_reason=state.termination_reason,
@@ -682,6 +686,8 @@ class Orchestrator:
             trace=state.trace,
             tool_results=[],
             state_transitions=[],
+            model_runs=state.model_runs,
+            model_evaluations=state.model_evaluations,
             state_id=state.state_id,
             loop_count=0,
             termination_reason=state.termination_reason,
@@ -738,28 +744,29 @@ class Orchestrator:
         return 4
 
 
-def build_default_orchestrator() -> Orchestrator:
+def build_default_orchestrator(llm_service: LLMService | None = None) -> Orchestrator:
     load_dotenv()
+    resolved_llm_service = llm_service or LLMService()
     memory_system = MemorySystem()
     skill_library = SkillLibrary()
     api_gateway = InterfaceGateway()
     session_permission_manager = SessionPermissionManager()
     context_builder = ContextBuilder()
-    orchestrator_brain = OrchestratorBrain()
-    planner = Planner()
+    orchestrator_brain = OrchestratorBrain(resolved_llm_service)
+    planner = Planner(resolved_llm_service)
     task_graph_engine = TaskGraphEngine()
-    agents = build_agent_registry()
+    agents = build_agent_registry(resolved_llm_service)
     tool_registry = ToolRegistry(memory_system, skill_library)
-    execution_engine = ExecutionEngine(tool_registry)
+    execution_engine = ExecutionEngine(tool_registry, resolved_llm_service)
     router_executor = RouterExecutor(
         agent_router=AgentRouter(),
         skill_library=skill_library,
         agents=agents,
     )
-    verification_engine = VerificationEngine()
-    reflection_engine = ReflectionEngine()
+    verification_engine = VerificationEngine(resolved_llm_service)
+    reflection_engine = ReflectionEngine(resolved_llm_service)
     safety_permissions = SafetyPermissions()
-    response_composer = ResponseComposer()
+    response_composer = ResponseComposer(resolved_llm_service)
 
     return Orchestrator(
         memory_system=memory_system,

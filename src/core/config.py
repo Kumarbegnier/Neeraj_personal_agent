@@ -33,6 +33,13 @@ class Settings(BaseModel):
     openai_embedding_model: str = Field(default_factory=lambda: os.getenv("OPENAI_EMBEDDING_MODEL", os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small")))
     openai_embedding_dimensions: int = Field(default_factory=lambda: int(os.getenv("OPENAI_EMBEDDING_DIMENSIONS", "1536")))
     use_openai_agents_sdk: bool = Field(default_factory=lambda: _env_bool("USE_OPENAI_AGENTS_SDK", True))
+    claude_api_key: str | None = Field(default_factory=lambda: os.getenv("CLAUDE_API_KEY", os.getenv("ANTHROPIC_API_KEY")))
+    claude_model: str = Field(default_factory=lambda: os.getenv("CLAUDE_MODEL", "claude-3-5-sonnet-latest"))
+    gemini_api_key: str | None = Field(default_factory=lambda: os.getenv("GEMINI_API_KEY", os.getenv("GOOGLE_API_KEY")))
+    gemini_model: str = Field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-1.5-pro"))
+    deepseek_api_key: str | None = Field(default_factory=lambda: os.getenv("DEEPSEEK_API_KEY"))
+    deepseek_model: str = Field(default_factory=lambda: os.getenv("DEEPSEEK_MODEL", "deepseek-reasoner"))
+    model_timeout_seconds: float = Field(default_factory=lambda: float(os.getenv("MODEL_TIMEOUT_SECONDS", "45")))
 
     mongodb_uri: str | None = Field(default_factory=lambda: os.getenv("MONGODB_URI"))
     mongodb_db_name: str = Field(default_factory=lambda: os.getenv("MONGODB_DB_NAME", "neeraj_ai_os"))

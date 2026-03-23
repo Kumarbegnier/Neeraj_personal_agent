@@ -60,8 +60,9 @@ if actions[2].button("Clear workspace", use_container_width=True):
 with st.container(border=True):
     st.subheader("Current frontend configuration")
     st.caption(
-        "Model selection is currently stored in frontend metadata and request preferences so the UI remains "
-        "aligned with future backend model-routing upgrades."
+        "Model selection is stored in frontend metadata and request preferences. The backend now uses task-based "
+        "provider routing by default, and treats the selected model as a compatible preference unless an explicit "
+        "provider override is supplied."
     )
     st.json(
         {

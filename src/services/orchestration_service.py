@@ -36,7 +36,7 @@ class OrchestrationService:
         self.episodic_store = episodic_store or EpisodicStore()
         self.semantic_store = semantic_store or SemanticStore()
         self.audit_service = audit_service or AuditService()
-        self._orchestrator = orchestrator or build_default_orchestrator()
+        self._orchestrator = orchestrator or build_default_orchestrator(self.llm_service)
         self.memory_manager = MemoryManager(
             self._orchestrator.memory_system,
             self.episodic_store,

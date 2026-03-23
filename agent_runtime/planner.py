@@ -1,11 +1,52 @@
 from __future__ import annotations
 
+import json
+
+from src.services.llm_service import LLMService
+from src.services.modeling.types import ModelTaskType
+
 from .models import AgentState, ExecutionPlan, PlanStep, ReActCycle
-from .runtime_utils import dedupe_preserve_order
+from .runtime_utils import dedupe_preserve_order, record_model_result, selected_model_override
 
 
 class Planner:
+    def __init__(self, llm_service: LLMService | None = None) -> None:
+        self._llm_service = llm_service
+
     def create_plan(self, state: AgentState) -> ExecutionPlan:
+        fallback = self._fallback_plan(state)
+        if self._llm_service is None:
+            return fallback
+
+        context = state.context
+        control = state.control
+        model_result = self._llm_service.generate_structured(
+            task_type=ModelTaskType.PLANNING,
+            stage="planning",
+            output_type=ExecutionPlan,
+            system_prompt=(
+                "You are the structured planning model for a hybrid agent runtime. "
+                "Return a complete execution plan that preserves verification, reflection, and state updates."
+            ),
+            user_prompt="\n".join(
+                [
+                    f"Objective: {state.request.message}",
+                    f"Intent: {control.intent if control else 'unknown'}",
+                    f"Complexity: {control.complexity if control else 'unknown'}",
+                    f"Requested capabilities: {json.dumps(context.requested_capabilities if context else [], ensure_ascii=True)}",
+                    f"Constraints: {json.dumps(self._combined_constraints(state), ensure_ascii=True)}",
+                    f"Verification focus: {json.dumps(self._verification_focus(state), ensure_ascii=True)}",
+                    f"Fallback plan: {fallback.model_dump_json()}",
+                ]
+            ),
+            fallback_output=fallback,
+            selected_model=selected_model_override(state),
+            metadata={"step_index": state.step_index, "retry_count": state.retry_count},
+        )
+        record_model_result(state, model_result)
+        return ExecutionPlan.model_validate(model_result.output.model_dump())
+
+    def _fallback_plan(self, state: AgentState) -> ExecutionPlan:
         context = state.context
         control = state.control
         if context is None or control is None:

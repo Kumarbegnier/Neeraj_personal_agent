@@ -31,8 +31,10 @@ class RuntimeLifecycleService:
                 "session_id": request.session_id,
                 "state_id": state.state_id,
                 "assigned_agent": state.route.agent_name if state.route else "general",
+                "model_run_count": len(state.model_runs),
             },
         )
+        self._record_model_events(state.model_runs, state.model_evaluations)
 
     def finalize_interaction(
         self,
@@ -42,6 +44,7 @@ class RuntimeLifecycleService:
         self._memory_manager.persist_interaction(request, response)
         self._record_trace_events(request, response)
         self._record_tool_events(response)
+        self._record_model_events(response.model_runs, response.model_evaluations)
 
     def recent_audit_events(self, limit: int = 100) -> AuditLogResponse:
         return AuditLogResponse(events=self._audit_service.recent(limit=limit))
@@ -74,5 +77,33 @@ class RuntimeLifecycleService:
                     "status": tool_result.status,
                     "risk_level": tool_result.risk_level,
                     "blocked_reason": tool_result.blocked_reason,
+                },
+            )
+
+    def _record_model_events(self, model_runs, model_evaluations) -> None:
+        for run in model_runs:
+            self._audit_service.record(
+                "model_invocation",
+                {
+                    "task_type": run.task_type,
+                    "stage": run.stage,
+                    "provider": run.provider,
+                    "model": run.model,
+                    "status": run.status,
+                    "source": run.source,
+                    "latency_ms": run.latency_ms,
+                    "used_fallback": run.used_fallback,
+                },
+            )
+        for evaluation in model_evaluations:
+            self._audit_service.record(
+                "model_evaluation",
+                {
+                    "task_type": evaluation.task_type,
+                    "provider": evaluation.provider,
+                    "model": evaluation.model,
+                    "score": evaluation.score,
+                    "notes": evaluation.notes,
+                    "compared_models": evaluation.compared_models,
                 },
             )

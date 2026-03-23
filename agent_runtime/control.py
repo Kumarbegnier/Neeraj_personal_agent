@@ -1,11 +1,55 @@
 from __future__ import annotations
 
+import json
+
+from src.services.llm_service import LLMService
+from src.services.modeling.types import ModelTaskType
+
 from .models import AgentState, ControlDecision
-from .runtime_utils import lowercase_surface, recent_observation_summaries
+from .runtime_utils import (
+    lowercase_surface,
+    recent_observation_summaries,
+    record_model_result,
+    selected_model_override,
+)
 
 
 class OrchestratorBrain:
+    def __init__(self, llm_service: LLMService | None = None) -> None:
+        self._llm_service = llm_service
+
     def decide(self, state: AgentState) -> ControlDecision:
+        fallback = self._fallback_decision(state)
+        if self._llm_service is None:
+            return fallback
+
+        context = state.context
+        model_result = self._llm_service.generate_structured(
+            task_type=ModelTaskType.ORCHESTRATION,
+            stage="control",
+            output_type=ControlDecision,
+            system_prompt=(
+                "You are the orchestration control layer for a hybrid multi-model agent runtime. "
+                "Produce a concise control decision that is safe, stateful, and tool-aware."
+            ),
+            user_prompt="\n".join(
+                [
+                    f"User message: {state.request.message}",
+                    f"Active goals: {json.dumps(context.active_goals if context else [], ensure_ascii=True)}",
+                    f"Requested capabilities: {json.dumps(context.requested_capabilities if context else [], ensure_ascii=True)}",
+                    f"Recent observations: {json.dumps(recent_observation_summaries(state, limit=4), ensure_ascii=True)}",
+                    f"Adaptive constraints: {json.dumps(state.adaptive_constraints, ensure_ascii=True)}",
+                    f"Fallback decision: {fallback.model_dump_json()}",
+                ]
+            ),
+            fallback_output=fallback,
+            selected_model=selected_model_override(state),
+            metadata={"step_index": state.step_index},
+        )
+        record_model_result(state, model_result)
+        return ControlDecision.model_validate(model_result.output.model_dump())
+
+    def _fallback_decision(self, state: AgentState) -> ControlDecision:
         context = state.context
         if context is None:
             raise ValueError("Context must be available before control decisions.")

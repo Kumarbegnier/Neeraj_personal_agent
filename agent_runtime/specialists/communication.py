@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from src.services.modeling.types import ModelTaskType
+
 from ..models import AgentDecision, AgentState, ExecutionResult, SkillDescriptor, ToolResult
 from .base import BaseAgent
 from .common import (
@@ -13,8 +15,9 @@ from .common import (
 
 class CommunicationAgent(BaseAgent):
     name = "communication"
+    decision_task_type = ModelTaskType.COMMUNICATION
 
-    def decide(self, state: AgentState, skills: list[SkillDescriptor]) -> AgentDecision:
+    def build_decision(self, state: AgentState, skills: list[SkillDescriptor]) -> AgentDecision:
         lowered = state.request.message.lower()
         live_send = any(word in lowered for word in ("send", "deliver", "email now", "message now"))
         dispatch_action = "send_message" if live_send else "draft_message"

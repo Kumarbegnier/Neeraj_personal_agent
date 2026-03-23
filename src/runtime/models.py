@@ -16,6 +16,8 @@ from agent_runtime.models import (
     InteractionResponse,
     MemoryRecord,
     MemorySnapshot,
+    ModelEvaluationRecord,
+    ModelExecutionRecord,
     ObservationRecord,
     PermissionDecision,
     PermissionMode,
@@ -29,6 +31,7 @@ from agent_runtime.models import (
     SessionState,
     SkillDescriptor,
     StateTransition,
+    StructuredResponse,
     TaskGraph,
     TaskNode,
     ToolRequest,
@@ -58,6 +61,8 @@ __all__ = [
     "InteractionResponse",
     "MemoryRecord",
     "MemorySnapshot",
+    "ModelEvaluationRecord",
+    "ModelExecutionRecord",
     "ObservationRecord",
     "PermissionDecision",
     "PermissionMode",
@@ -71,6 +76,7 @@ __all__ = [
     "SessionState",
     "SkillDescriptor",
     "StateTransition",
+    "StructuredResponse",
     "TaskGraph",
     "TaskNode",
     "ToolRequest",
@@ -81,4 +87,3 @@ __all__ = [
     "VerificationReport",
     "WorkingMemory",
 ]
-

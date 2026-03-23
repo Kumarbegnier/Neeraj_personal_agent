@@ -34,8 +34,13 @@ def get_frontend_config() -> FrontendConfig:
         [
             settings.openai_responses_model,
             settings.openai_chat_model,
+            settings.claude_model,
+            settings.gemini_model,
+            settings.deepseek_model,
             "gpt-4o-mini",
-            "gpt-4.1-mini",
+            "claude-3-5-sonnet-latest",
+            "gemini-1.5-pro",
+            "deepseek-reasoner",
         ]
     )
     return FrontendConfig(

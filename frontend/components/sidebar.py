@@ -35,7 +35,10 @@ def render_sidebar(state: MutableMapping[str, Any], config: FrontendConfig) -> N
                 "Model selection",
                 options=list(config.model_options),
                 key="selected_model",
-                help="Attached to outbound requests as frontend metadata and backend preferences.",
+                help=(
+                    "Attached to outbound requests as a preferred model hint. "
+                    "The backend still routes by task type unless an explicit provider override is used."
+                ),
             )
             st.toggle(
                 "Auto-approve gated actions",

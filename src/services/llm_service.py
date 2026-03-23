@@ -1,7 +1,25 @@
 from __future__ import annotations
 
+from time import perf_counter
 from typing import Any, Callable
 
+from pydantic import BaseModel
+
+from src.services.modeling.providers import (
+    ClaudeProviderAdapter,
+    DeepSeekProviderAdapter,
+    GeminiProviderAdapter,
+    OpenAIProviderAdapter,
+    ProviderInvocationError,
+)
+from src.services.modeling.router import ModelRouter
+from src.services.modeling.types import (
+    EvaluationTelemetry,
+    GenerationTelemetry,
+    ModelProvider,
+    ModelTaskType,
+    StructuredGenerationResult,
+)
 from src.core.config import get_settings
 
 try:  # pragma: no cover - optional dependency
@@ -18,13 +36,20 @@ except Exception:  # pragma: no cover - optional dependency
 
 
 class LLMService:
-    """Thin OpenAI / Agents SDK integration layer with graceful local fallback."""
+    """Hybrid multi-provider model runtime with structured-output routing and OpenAI SDK support."""
 
     def __init__(self) -> None:
         self.settings = get_settings()
         self.chat_model = self.settings.openai_chat_model
         self.responses_model = self.settings.openai_responses_model
         self.embedding_model = self.settings.openai_embedding_model
+        self.model_router = ModelRouter(self.settings)
+        self._providers = {
+            ModelProvider.OPENAI: OpenAIProviderAdapter(self.settings),
+            ModelProvider.CLAUDE: ClaudeProviderAdapter(self.settings),
+            ModelProvider.GEMINI: GeminiProviderAdapter(self.settings),
+            ModelProvider.DEEPSEEK: DeepSeekProviderAdapter(self.settings),
+        }
         self._client = self._build_client()
 
     def _build_client(self) -> Any | None:
@@ -34,23 +59,105 @@ class LLMService:
 
     def info(self) -> dict[str, Any]:
         return {
-            "chat_model": self.chat_model,
-            "responses_model": self.responses_model,
-            "embedding_model": self.embedding_model,
-            "openai_configured": self._client is not None,
+            "providers": self._provider_health(),
+            "routing_policy": self.model_router.routing_table(),
+            "tool_execution_provider": ModelProvider.OPENAI.value,
+            "reflection_provider": ModelProvider.CLAUDE.value,
+            "research_provider": ModelProvider.GEMINI.value,
+            "planning_provider": ModelProvider.DEEPSEEK.value,
             "agents_sdk_available": self.agents_sdk_available(),
-            "provider": "openai_responses_compatible",
         }
 
     def health(self) -> dict[str, Any]:
+        configured_providers = [name for name, details in self._provider_health().items() if details["configured"]]
         return {
-            "configured": self._client is not None,
+            "configured": bool(configured_providers),
+            "configured_providers": configured_providers,
             "agents_sdk_available": self.agents_sdk_available(),
-            "responses_model": self.responses_model,
+            "providers": self._provider_health(),
+            "routing_policy": self.model_router.routing_table(),
         }
 
     def agents_sdk_available(self) -> bool:
         return bool(self.settings.use_openai_agents_sdk and SDKAgent is not None and Runner is not None)
+
+    def generate_structured(
+        self,
+        *,
+        task_type: ModelTaskType,
+        stage: str,
+        output_type: type[BaseModel],
+        system_prompt: str,
+        user_prompt: str,
+        fallback_output: BaseModel,
+        selected_model: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> StructuredGenerationResult[BaseModel]:
+        route = self.model_router.route(task_type, selected_model=selected_model)
+        provider = self._providers[route.provider]
+        started = perf_counter()
+        status = "fallback"
+        source = "fallback"
+        reason = route.reason
+        used_fallback = True
+        output = fallback_output
+
+        try:
+            live_output = provider.generate_structured(
+                model=route.model,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                output_type=output_type,
+            )
+            output = live_output
+            status = "success"
+            source = "live"
+            reason = f"{route.provider.value} returned structured output for task '{task_type.value}'."
+            used_fallback = False
+        except ProviderInvocationError as exc:
+            reason = str(exc)
+        except Exception as exc:  # pragma: no cover - defensive path
+            status = "error"
+            reason = str(exc)
+
+        latency_ms = int((perf_counter() - started) * 1000)
+        run = GenerationTelemetry(
+            task_type=task_type.value,
+            stage=stage,
+            provider=route.provider.value,
+            model=route.model,
+            status=status,
+            source=source,
+            latency_ms=latency_ms,
+            used_fallback=used_fallback,
+            reason=reason,
+            candidate_models=route.candidate_models,
+            metadata=metadata or {},
+        )
+        evaluation_notes = (
+            "Structured output validated against the declared schema."
+            if not used_fallback
+            else "Deterministic fallback preserved hybrid execution semantics."
+        )
+        evaluation = EvaluationTelemetry(
+            task_type=task_type.value,
+            provider=route.provider.value,
+            model=route.model,
+            score=1.0 if not used_fallback else 0.45,
+            notes=(evaluation_notes,),
+            compared_models=route.candidate_models,
+            metadata={
+                "stage": stage,
+                "used_fallback": used_fallback,
+                **(metadata or {}),
+            },
+        )
+        return StructuredGenerationResult(
+            output=output,
+            route=route,
+            run=run,
+            evaluation=evaluation,
+        )
 
     def build_sdk_agent(
         self,
@@ -106,3 +213,9 @@ class LLMService:
                 "reason": str(exc),
                 "final_output": None,
             }
+
+    def _provider_health(self) -> dict[str, dict[str, Any]]:
+        return {
+            provider.value: adapter.health()
+            for provider, adapter in self._providers.items()
+        }

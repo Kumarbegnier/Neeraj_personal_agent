@@ -105,5 +105,9 @@ class RuntimeLifecycleService:
                     "score": evaluation.score,
                     "notes": evaluation.notes,
                     "compared_models": evaluation.compared_models,
+                    "structured_output_validity": evaluation.structured_output_validity,
+                    "latency_ms": evaluation.latency_ms,
+                    "task_success": evaluation.task_success,
+                    "response_completeness": evaluation.response_completeness,
                 },
             )

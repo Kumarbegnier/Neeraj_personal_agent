@@ -1,41 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
+from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from src.schemas.routing import ModelProvider, ModelTaskType, RoutingDecision
 
 
-class ModelProvider(str, Enum):
-    OPENAI = "openai"
-    CLAUDE = "claude"
-    GEMINI = "gemini"
-    DEEPSEEK = "deepseek"
+ModelRoute = RoutingDecision
 
 
-class ModelTaskType(str, Enum):
-    ORCHESTRATION = "orchestration"
-    TOOL_EXECUTION = "tool_execution"
-    COMMUNICATION = "communication"
-    RESEARCH = "research"
-    WEB_GROUNDING = "web_grounding"
-    PLANNING = "planning"
-    REASONING = "reasoning"
-    REFLECTION = "reflection"
-
-
-@dataclass(frozen=True)
-class ModelRoute:
-    task_type: ModelTaskType
-    provider: ModelProvider
-    model: str
-    reason: str
-    candidate_models: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
-class GenerationTelemetry:
+class GenerationTelemetry(BaseModel):
     task_type: str
     stage: str
     provider: str
@@ -45,19 +21,22 @@ class GenerationTelemetry:
     latency_ms: int
     used_fallback: bool
     reason: str
-    candidate_models: tuple[str, ...] = ()
-    metadata: dict[str, Any] = field(default_factory=dict)
+    candidate_models: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass(frozen=True)
-class EvaluationTelemetry:
+class EvaluationTelemetry(BaseModel):
     task_type: str
     provider: str
     model: str
     score: float
-    notes: tuple[str, ...] = ()
-    compared_models: tuple[str, ...] = ()
-    metadata: dict[str, Any] = field(default_factory=dict)
+    notes: list[str] = Field(default_factory=list)
+    compared_models: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    structured_output_validity: bool | None = None
+    latency_ms: int | None = None
+    task_success: bool | None = None
+    response_completeness: float | None = None
 
 
 T = TypeVar("T", bound=BaseModel)

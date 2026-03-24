@@ -107,6 +107,8 @@ class ReflectionEngine:
             repairs=repairs,
             lessons=lessons,
             next_actions=next_actions,
+            retry_recommended=bool(issues),
+            retry_reason="Verification surfaced material issues that should trigger one retry." if issues else None,
             confidence=min(state.verification.confidence, state.execution.confidence),
             route_bias=route_bias,
             blocked_tools=dedupe_preserve_order(blocked_tools),

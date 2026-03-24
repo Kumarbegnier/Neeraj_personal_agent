@@ -75,6 +75,10 @@ def record_model_result(state: AgentState, result: StructuredGenerationResult) -
             notes=list(result.evaluation.notes),
             compared_models=list(result.evaluation.compared_models),
             metadata=dict(result.evaluation.metadata),
+            structured_output_validity=result.evaluation.structured_output_validity,
+            latency_ms=result.evaluation.latency_ms,
+            task_success=result.evaluation.task_success,
+            response_completeness=result.evaluation.response_completeness,
         )
     )
     state.trace.append(

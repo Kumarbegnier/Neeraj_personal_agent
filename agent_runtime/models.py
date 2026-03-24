@@ -6,6 +6,8 @@ from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
+from src.schemas.planner import PlannerOutput
+from src.schemas.reflection import ReflectionOutput
 
 
 def utc_now() -> datetime:
@@ -185,17 +187,10 @@ class PlanStep(BaseModel):
     risk_level: str = "low"
 
 
-class ExecutionPlan(BaseModel):
+class ExecutionPlan(PlannerOutput):
     objective: str
-    reasoning: str
     react_cycles: list[ReActCycle] = Field(default_factory=list)
     steps: list[PlanStep] = Field(default_factory=list)
-    assumptions: list[str] = Field(default_factory=list)
-    constraints: list[str] = Field(default_factory=list)
-    success_criteria: list[str] = Field(default_factory=list)
-    failure_modes: list[str] = Field(default_factory=list)
-    verification_focus: list[str] = Field(default_factory=list)
-    decomposition_strategy: str = ""
     completion_state: str = "planned"
 
 
@@ -300,17 +295,10 @@ class VerificationReport(BaseModel):
     retry_recommended: bool = False
 
 
-class ReflectionReport(BaseModel):
+class ReflectionReport(ReflectionOutput):
     status: str
-    summary: str
     checks: list[str] = Field(default_factory=list)
-    issues: list[str] = Field(default_factory=list)
-    repairs: list[str] = Field(default_factory=list)
-    lessons: list[str] = Field(default_factory=list)
     next_actions: list[str] = Field(default_factory=list)
-    confidence: float = 0.75
-    route_bias: str | None = None
-    blocked_tools: list[str] = Field(default_factory=list)
 
 
 class ModelExecutionRecord(BaseModel):
@@ -335,6 +323,10 @@ class ModelEvaluationRecord(BaseModel):
     notes: list[str] = Field(default_factory=list)
     compared_models: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
+    structured_output_validity: bool | None = None
+    latency_ms: int | None = None
+    task_success: bool | None = None
+    response_completeness: float | None = None
 
 
 class PermissionDecision(BaseModel):

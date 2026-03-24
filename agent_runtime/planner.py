@@ -1,50 +1,46 @@
 from __future__ import annotations
 
-import json
-
+from src.schemas.planner import PlannerOutput, PlannerSubtask
+from src.services.planner_service import PlannerService
 from src.services.llm_service import LLMService
-from src.services.modeling.types import ModelTaskType
 
 from .models import AgentState, ExecutionPlan, PlanStep, ReActCycle
 from .runtime_utils import dedupe_preserve_order, record_model_result, selected_model_override
 
 
 class Planner:
-    def __init__(self, llm_service: LLMService | None = None) -> None:
+    def __init__(
+        self,
+        llm_service: LLMService | None = None,
+        planner_service: PlannerService | None = None,
+    ) -> None:
         self._llm_service = llm_service
+        self._planner_service = planner_service or (
+            PlannerService(llm_service) if llm_service is not None else None
+        )
 
     def create_plan(self, state: AgentState) -> ExecutionPlan:
         fallback = self._fallback_plan(state)
-        if self._llm_service is None:
+        if self._planner_service is None:
             return fallback
 
         context = state.context
         control = state.control
-        model_result = self._llm_service.generate_structured(
-            task_type=ModelTaskType.PLANNING,
-            stage="planning",
-            output_type=ExecutionPlan,
-            system_prompt=(
-                "You are the structured planning model for a hybrid agent runtime. "
-                "Return a complete execution plan that preserves verification, reflection, and state updates."
-            ),
-            user_prompt="\n".join(
-                [
-                    f"Objective: {state.request.message}",
-                    f"Intent: {control.intent if control else 'unknown'}",
-                    f"Complexity: {control.complexity if control else 'unknown'}",
-                    f"Requested capabilities: {json.dumps(context.requested_capabilities if context else [], ensure_ascii=True)}",
-                    f"Constraints: {json.dumps(self._combined_constraints(state), ensure_ascii=True)}",
-                    f"Verification focus: {json.dumps(self._verification_focus(state), ensure_ascii=True)}",
-                    f"Fallback plan: {fallback.model_dump_json()}",
-                ]
-            ),
-            fallback_output=fallback,
+        planner_result, critique_result = self._planner_service.generate_plan(
+            objective=state.request.message,
+            intent=control.intent if control else "unknown",
+            complexity=control.complexity if control else "unknown",
+            requested_capabilities=context.requested_capabilities if context else [],
+            constraints=self._combined_constraints(state),
+            verification_focus=self._verification_focus(state),
+            fallback_output=self._planner_output_from_plan(fallback),
             selected_model=selected_model_override(state),
             metadata={"step_index": state.step_index, "retry_count": state.retry_count},
         )
-        record_model_result(state, model_result)
-        return ExecutionPlan.model_validate(model_result.output.model_dump())
+        record_model_result(state, planner_result)
+        record_model_result(state, critique_result)
+        planner_output = PlannerOutput.model_validate(planner_result.output.model_dump())
+        return self._merge_planner_output(fallback, planner_output)
 
     def _fallback_plan(self, state: AgentState) -> ExecutionPlan:
         context = state.context
@@ -196,6 +192,14 @@ class Planner:
 
         return ExecutionPlan(
             objective=state.request.message.strip(),
+            task_summary=(
+                f"Build a {decomposition_strategy} plan for intent '{control.intent}' "
+                f"using current memory, verification focus, and loop feedback."
+            ),
+            subtasks=self._planner_subtasks(steps),
+            required_tools=dedupe_preserve_order(context.requested_capabilities or ["reasoning"]),
+            risk_level=control.risk_level,
+            approval_needed=control.risk_level in {"high", "critical"},
             reasoning=reasoning,
             react_cycles=react_cycles,
             steps=steps,
@@ -269,3 +273,121 @@ class Planner:
     def _combined_constraints(self, state: AgentState) -> list[str]:
         context_constraints = state.context.constraints if state.context else []
         return dedupe_preserve_order([*context_constraints, *state.adaptive_constraints])
+
+    def _planner_subtasks(self, steps: list[PlanStep]) -> list[PlannerSubtask]:
+        return [
+            PlannerSubtask(
+                name=step.name,
+                description=step.description,
+                owner=step.owner,
+                depends_on=step.depends_on,
+                required_tools=step.requires_tools,
+                expected_output=step.success_criteria[0] if step.success_criteria else "",
+                risk_level=step.risk_level,
+            )
+            for step in steps
+        ]
+
+    def _planner_output_from_plan(self, plan: ExecutionPlan) -> PlannerOutput:
+        return PlannerOutput(
+            task_summary=plan.task_summary,
+            subtasks=plan.subtasks or self._planner_subtasks(plan.steps),
+            required_tools=plan.required_tools,
+            risk_level=plan.risk_level,
+            approval_needed=plan.approval_needed,
+            success_criteria=plan.success_criteria,
+            assumptions=plan.assumptions,
+            constraints=plan.constraints,
+            failure_modes=plan.failure_modes,
+            verification_focus=plan.verification_focus,
+            decomposition_strategy=plan.decomposition_strategy,
+            reasoning=plan.reasoning,
+        )
+
+    def _merge_planner_output(
+        self,
+        fallback: ExecutionPlan,
+        planner_output: PlannerOutput,
+    ) -> ExecutionPlan:
+        merged_steps = self._merge_steps(
+            fallback.steps,
+            planner_output.subtasks,
+            planner_output.required_tools,
+            planner_output.risk_level,
+        )
+        return fallback.model_copy(
+            update={
+                "task_summary": planner_output.task_summary or fallback.task_summary,
+                "subtasks": planner_output.subtasks or fallback.subtasks,
+                "required_tools": planner_output.required_tools or fallback.required_tools,
+                "risk_level": planner_output.risk_level or fallback.risk_level,
+                "approval_needed": planner_output.approval_needed,
+                "success_criteria": planner_output.success_criteria or fallback.success_criteria,
+                "assumptions": planner_output.assumptions or fallback.assumptions,
+                "constraints": planner_output.constraints or fallback.constraints,
+                "failure_modes": planner_output.failure_modes or fallback.failure_modes,
+                "verification_focus": planner_output.verification_focus or fallback.verification_focus,
+                "decomposition_strategy": (
+                    planner_output.decomposition_strategy or fallback.decomposition_strategy
+                ),
+                "reasoning": planner_output.reasoning or fallback.reasoning,
+                "steps": merged_steps,
+            }
+        )
+
+    def _merge_steps(
+        self,
+        fallback_steps: list[PlanStep],
+        subtasks: list[PlannerSubtask],
+        required_tools: list[str],
+        default_risk_level: str,
+    ) -> list[PlanStep]:
+        subtask_map = {subtask.name: subtask for subtask in subtasks}
+        merged_steps: list[PlanStep] = []
+
+        for step in fallback_steps:
+            matched = subtask_map.get(step.name)
+            if matched is None:
+                if step.name == "execute" and required_tools:
+                    merged_steps.append(
+                        step.model_copy(
+                            update={
+                                "requires_tools": required_tools,
+                                "risk_level": default_risk_level or step.risk_level,
+                            }
+                        )
+                    )
+                else:
+                    merged_steps.append(step)
+                continue
+
+            merged_steps.append(
+                step.model_copy(
+                    update={
+                        "description": matched.description or step.description,
+                        "owner": matched.owner or step.owner,
+                        "depends_on": matched.depends_on or step.depends_on,
+                        "requires_tools": matched.required_tools or step.requires_tools,
+                        "risk_level": matched.risk_level or step.risk_level or default_risk_level,
+                    }
+                )
+            )
+
+        existing_names = {step.name for step in merged_steps}
+        for subtask in subtasks:
+            if subtask.name in existing_names:
+                continue
+            merged_steps.append(
+                PlanStep(
+                    name=subtask.name,
+                    description=subtask.description,
+                    owner=subtask.owner,
+                    depends_on=subtask.depends_on,
+                    step_type="planning",
+                    requires_tools=subtask.required_tools,
+                    success_criteria=[subtask.expected_output] if subtask.expected_output else [],
+                    risk_level=subtask.risk_level or default_risk_level,
+                )
+            )
+
+        return merged_steps

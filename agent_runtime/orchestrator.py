@@ -3,6 +3,8 @@ from __future__ import annotations
 from dotenv import load_dotenv
 
 from src.services.llm_service import LLMService
+from src.services.planner_service import PlannerService
+from src.services.reflection_service import ReflectionService
 
 from .agents import build_agent_registry
 from .context_builder import ContextBuilder
@@ -340,6 +342,11 @@ class Orchestrator:
             )
             state.plan = ExecutionPlan(
                 objective=request.message,
+                task_summary="Planning preview stopped because preflight checks blocked the request.",
+                subtasks=[],
+                required_tools=[],
+                risk_level="high",
+                approval_needed=True,
                 reasoning="Preflight checks blocked plan preview.",
                 react_cycles=[],
                 steps=[],
@@ -629,6 +636,11 @@ class Orchestrator:
         )
         state.plan = ExecutionPlan(
             objective=state.request.message.strip(),
+            task_summary="The request cannot proceed because preflight checks blocked execution.",
+            subtasks=[],
+            required_tools=[],
+            risk_level="high",
+            approval_needed=True,
             reasoning="Preflight checks blocked the loop before planning could begin.",
             react_cycles=[],
             steps=[],
@@ -753,7 +765,9 @@ def build_default_orchestrator(llm_service: LLMService | None = None) -> Orchest
     session_permission_manager = SessionPermissionManager()
     context_builder = ContextBuilder()
     orchestrator_brain = OrchestratorBrain(resolved_llm_service)
-    planner = Planner(resolved_llm_service)
+    reflection_service = ReflectionService(resolved_llm_service)
+    planner_service = PlannerService(resolved_llm_service, reflection_service)
+    planner = Planner(resolved_llm_service, planner_service)
     task_graph_engine = TaskGraphEngine()
     agents = build_agent_registry(resolved_llm_service)
     tool_registry = ToolRegistry(memory_system, skill_library)
@@ -766,7 +780,7 @@ def build_default_orchestrator(llm_service: LLMService | None = None) -> Orchest
     verification_engine = VerificationEngine(resolved_llm_service)
     reflection_engine = ReflectionEngine(resolved_llm_service)
     safety_permissions = SafetyPermissions()
-    response_composer = ResponseComposer(resolved_llm_service)
+    response_composer = ResponseComposer(resolved_llm_service, reflection_service)
 
     return Orchestrator(
         memory_system=memory_system,

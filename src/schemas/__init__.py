@@ -8,7 +8,9 @@ from .chat import (
     UserRequest,
 )
 from .memory import MemoryRecord, MemorySnapshot, SessionPermissionState
+from .evaluation import EvaluationSummary, ProviderEvaluationResult
 from .plan import ControlDecision, ExecutionPlan, PlanStep, ReActCycle, TaskGraph
+from .planner import PlannerOutput, PlannerSubtask, RiskLevel
 from .platform import (
     ArchitectureResponse,
     ChatRequest,
@@ -19,6 +21,9 @@ from .platform import (
     PlanRequest,
     PlanResponse,
 )
+from .provider import ProviderHealth, ProviderMessage, ProviderRequest, ProviderResponse, StructuredOutputSchema
+from .reflection import ReflectionOutput
+from .routing import ModelProvider, ModelTaskType, RoutingDecision, RoutingPolicyEntry, RoutingRequest
 from .tool import ToolRequest, ToolResult
 
 __all__ = [
@@ -52,4 +57,20 @@ __all__ = [
     "ToolDescriptor",
     "ToolRequest",
     "ToolResult",
+    "EvaluationSummary",
+    "ModelProvider",
+    "ModelTaskType",
+    "PlannerOutput",
+    "PlannerSubtask",
+    "ProviderEvaluationResult",
+    "ProviderHealth",
+    "ProviderMessage",
+    "ProviderRequest",
+    "ProviderResponse",
+    "ReflectionOutput",
+    "RiskLevel",
+    "RoutingDecision",
+    "RoutingPolicyEntry",
+    "RoutingRequest",
+    "StructuredOutputSchema",
 ]

@@ -1,31 +1,3 @@
-from .catalog import AgentCatalog, AgentDescriptor, AuditEvent, AuditLogResponse, ToolCatalog, ToolDescriptor
-from .chat import (
-    Channel,
-    ConversationTurn,
-    GatewayHeaders,
-    InteractionResponse,
-    SessionState,
-    UserRequest,
-)
-from .memory import MemoryRecord, MemorySnapshot, SessionPermissionState
-from .evaluation import EvaluationSummary, ProviderEvaluationResult
-from .plan import ControlDecision, ExecutionPlan, PlanStep, ReActCycle, TaskGraph
-from .planner import PlannerOutput, PlannerSubtask, RiskLevel
-from .platform import (
-    ArchitectureResponse,
-    ChatRequest,
-    ChatResponse,
-    ExecuteRequest,
-    ExecuteResponse,
-    HealthResponse,
-    PlanRequest,
-    PlanResponse,
-)
-from .provider import ProviderHealth, ProviderMessage, ProviderRequest, ProviderResponse, StructuredOutputSchema
-from .reflection import ReflectionOutput
-from .routing import ModelProvider, ModelTaskType, RoutingDecision, RoutingPolicyEntry, RoutingRequest
-from .tool import ToolRequest, ToolResult
-
 __all__ = [
     "Channel",
     "ConversationTurn",
@@ -74,3 +46,62 @@ __all__ = [
     "RoutingRequest",
     "StructuredOutputSchema",
 ]
+
+
+_EXPORTS = {
+    "AgentCatalog": ("catalog", "AgentCatalog"),
+    "AgentDescriptor": ("catalog", "AgentDescriptor"),
+    "ArchitectureResponse": ("platform", "ArchitectureResponse"),
+    "AuditEvent": ("catalog", "AuditEvent"),
+    "AuditLogResponse": ("catalog", "AuditLogResponse"),
+    "Channel": ("chat", "Channel"),
+    "ChatRequest": ("platform", "ChatRequest"),
+    "ChatResponse": ("platform", "ChatResponse"),
+    "ControlDecision": ("plan", "ControlDecision"),
+    "ConversationTurn": ("chat", "ConversationTurn"),
+    "EvaluateRequest": ("platform", "EvaluateRequest"),
+    "EvaluationSummary": ("evaluation", "EvaluationSummary"),
+    "ExecuteRequest": ("platform", "ExecuteRequest"),
+    "ExecuteResponse": ("platform", "ExecuteResponse"),
+    "ExecutionPlan": ("plan", "ExecutionPlan"),
+    "GatewayHeaders": ("chat", "GatewayHeaders"),
+    "HealthResponse": ("platform", "HealthResponse"),
+    "InteractionResponse": ("chat", "InteractionResponse"),
+    "MemoryRecord": ("memory", "MemoryRecord"),
+    "MemorySnapshot": ("memory", "MemorySnapshot"),
+    "ModelProvider": ("routing", "ModelProvider"),
+    "ModelTaskType": ("routing", "ModelTaskType"),
+    "PlanRequest": ("platform", "PlanRequest"),
+    "PlanResponse": ("platform", "PlanResponse"),
+    "PlanStep": ("plan", "PlanStep"),
+    "PlannerOutput": ("planner", "PlannerOutput"),
+    "PlannerSubtask": ("planner", "PlannerSubtask"),
+    "ProviderEvaluationResult": ("evaluation", "ProviderEvaluationResult"),
+    "ProviderHealth": ("provider", "ProviderHealth"),
+    "ProviderMessage": ("provider", "ProviderMessage"),
+    "ProviderRequest": ("provider", "ProviderRequest"),
+    "ProviderResponse": ("provider", "ProviderResponse"),
+    "ReActCycle": ("plan", "ReActCycle"),
+    "ReflectionOutput": ("reflection", "ReflectionOutput"),
+    "RiskLevel": ("planner", "RiskLevel"),
+    "RoutingDecision": ("routing", "RoutingDecision"),
+    "RoutingPolicyEntry": ("routing", "RoutingPolicyEntry"),
+    "RoutingRequest": ("routing", "RoutingRequest"),
+    "SessionPermissionState": ("memory", "SessionPermissionState"),
+    "SessionState": ("chat", "SessionState"),
+    "StructuredOutputSchema": ("provider", "StructuredOutputSchema"),
+    "TaskGraph": ("plan", "TaskGraph"),
+    "ToolCatalog": ("catalog", "ToolCatalog"),
+    "ToolDescriptor": ("catalog", "ToolDescriptor"),
+    "ToolRequest": ("tool", "ToolRequest"),
+    "ToolResult": ("tool", "ToolResult"),
+    "UserRequest": ("chat", "UserRequest"),
+}
+
+
+def __getattr__(name: str):
+    if name not in _EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attr_name = _EXPORTS[name]
+    module = __import__(f"{__name__}.{module_name}", fromlist=[attr_name])
+    return getattr(module, attr_name)

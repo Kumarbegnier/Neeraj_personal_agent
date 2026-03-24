@@ -1,50 +1,3 @@
-from .factory import Orchestrator, build_default_orchestrator
-from .models import (
-    AgentDecision,
-    AgentRoute,
-    AgentState,
-    AuthContext,
-    AuthMode,
-    Channel,
-    ContextSignal,
-    ContextSnapshot,
-    ControlDecision,
-    ConversationTurn,
-    ExecutionPlan,
-    ExecutionResult,
-    GatewayHeaders,
-    GatewayResult,
-    InteractionResponse,
-    MemoryRecord,
-    MemorySnapshot,
-    ModelEvaluationRecord,
-    ModelExecutionRecord,
-    ObservationRecord,
-    PermissionDecision,
-    PermissionMode,
-    PlanStep,
-    RateLimitStatus,
-    ReActCycle,
-    ReflectionReport,
-    SafetyPolicyHit,
-    SafetyReport,
-    SessionPermissionState,
-    SessionState,
-    SkillDescriptor,
-    StateTransition,
-    StructuredResponse,
-    TaskGraph,
-    TaskNode,
-    ToolRequest,
-    ToolResult,
-    TraceEvent,
-    UserRequest,
-    VerificationCheck,
-    VerificationReport,
-    WorkingMemory,
-)
-from .workflow import ARCHITECTURE_STAGES, StageDescriptor
-
 __all__ = [
     "ARCHITECTURE_STAGES",
     "StageDescriptor",
@@ -93,3 +46,68 @@ __all__ = [
     "VerificationReport",
     "WorkingMemory",
 ]
+
+
+def __getattr__(name: str):
+    if name in {"Orchestrator", "build_default_orchestrator"}:
+        from .factory import Orchestrator, build_default_orchestrator
+
+        return {
+            "Orchestrator": Orchestrator,
+            "build_default_orchestrator": build_default_orchestrator,
+        }[name]
+    if name in {"ARCHITECTURE_STAGES", "StageDescriptor"}:
+        from .workflow import ARCHITECTURE_STAGES, StageDescriptor
+
+        return {
+            "ARCHITECTURE_STAGES": ARCHITECTURE_STAGES,
+            "StageDescriptor": StageDescriptor,
+        }[name]
+    if name in {
+        "AgentDecision",
+        "AgentRoute",
+        "AgentState",
+        "AuthContext",
+        "AuthMode",
+        "Channel",
+        "ContextSignal",
+        "ContextSnapshot",
+        "ControlDecision",
+        "ConversationTurn",
+        "ExecutionPlan",
+        "ExecutionResult",
+        "GatewayHeaders",
+        "GatewayResult",
+        "InteractionResponse",
+        "MemoryRecord",
+        "MemorySnapshot",
+        "ModelEvaluationRecord",
+        "ModelExecutionRecord",
+        "ObservationRecord",
+        "PermissionDecision",
+        "PermissionMode",
+        "PlanStep",
+        "RateLimitStatus",
+        "ReActCycle",
+        "ReflectionReport",
+        "SafetyPolicyHit",
+        "SafetyReport",
+        "SessionPermissionState",
+        "SessionState",
+        "SkillDescriptor",
+        "StateTransition",
+        "StructuredResponse",
+        "TaskGraph",
+        "TaskNode",
+        "ToolRequest",
+        "ToolResult",
+        "TraceEvent",
+        "UserRequest",
+        "VerificationCheck",
+        "VerificationReport",
+        "WorkingMemory",
+    }:
+        from . import models as runtime_models
+
+        return getattr(runtime_models, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

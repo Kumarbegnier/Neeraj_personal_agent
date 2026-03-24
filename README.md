@@ -1,6 +1,6 @@
 # Neeraj AI OS
 
-Neeraj AI OS is a stateful personal AI agent platform built as a runtime system, not just a chatbot wrapper. It combines planning, specialist routing, tool execution, memory, verification, reflection, and audit logging so the model operates inside a governed workflow instead of a single prompt-response loop.
+Neeraj AI OS is a stateful personal AI agent platform built as a runtime system, not just a chatbot wrapper. It combines planning, specialist routing, tool execution, memory, verification, reflection, audit logging, and a clean multi-model provider layer so the runtime operates inside a governed workflow instead of a single prompt-response loop.
 
 ## What This Project Is
 
@@ -14,6 +14,16 @@ This repository is designed for building a personal AI system that can:
 - update memory and runtime state across turns
 
 The result is a more deliberate, inspectable, and extensible agent architecture than a typical chat app.
+
+## Multi-Model Runtime
+
+The runtime now supports a research-grade multi-model architecture with provider logic isolated behind `src/providers`.
+
+- OpenAI is the orchestration and tool-calling backbone
+- Claude is used for communication tasks and critique/reflection
+- Gemini is used for research and web-grounded tasks
+- DeepSeek is used for structured planning and JSON-heavy reasoning
+- Routing decisions are handled by a dedicated policy and router service instead of leaking provider logic into agents or routes
 
 ## Why It Feels More Advanced Than a Basic Chatbot
 
@@ -37,6 +47,11 @@ That gives you a system that is better suited for:
 
 - Stateful orchestration through a shared `AgentState`
 - Multiple specialists for coding, communication, research, browser, task, file, and general work
+- Provider abstraction layer with isolated OpenAI, Claude, Gemini, and DeepSeek adapters
+- Typed routing policy and model router for task-to-provider selection
+- Structured planner output with subtasks, required tools, risk, approvals, and success criteria
+- Reflection service that can critique major outputs and request one retry
+- Evaluation service that can compare the same structured task across providers
 - Shared tool registry with typed metadata and structured results
 - FastAPI backend for health, planning, chat, execution, audit, tools, and agent catalog access
 - Streamlit frontend for local interaction, inspection, and runtime visibility
@@ -64,7 +79,8 @@ flowchart LR
 | Layer | Purpose |
 | --- | --- |
 | `src/api` | FastAPI routes and request handling |
-| `src/services` | Orchestration service and lifecycle management |
+| `src/services` | Orchestration, routing, planning, reflection, evaluation, and lifecycle management |
+| `src/providers` | Isolated model provider adapters and registry |
 | `src/runtime` | Stable facade exposed to backend and frontend |
 | `agent_runtime` | Live stateful runtime and orchestration loop |
 | `agent_runtime/specialists` | Concrete specialist agent behavior |
@@ -89,10 +105,11 @@ src/
   core/                  Config, logging, permissions
   graph/                 Graph and state facades
   memory/                Episodic and semantic memory helpers
+  providers/             Isolated OpenAI, Claude, Gemini, and DeepSeek clients
   runtime/               Stable runtime contracts
   safety/                Approvals, validation, audit helpers
-  schemas/               Shared API and catalog models
-  services/              Orchestration and LLM integration
+  schemas/               Shared API, routing, planner, reflection, and provider models
+  services/              Orchestration, routing policy, planner, reflection, evaluation, and LLM integration
   tools/                 Tool catalog and adapters
   utils/                 Shared utility helpers
 
@@ -110,6 +127,21 @@ agent_runtime/
 frontend/
 pages/
 ```
+
+## Model Routing Policy
+
+| Task Type | Default Provider | Why |
+| --- | --- | --- |
+| Orchestration | OpenAI | Primary orchestration and tool-calling backbone |
+| Tool execution | OpenAI | Stable tool-calling and execution summarization path |
+| Communication | Claude | Stronger communication-style drafting and response shaping |
+| Reflection | Claude | Better critique and revision guidance |
+| Research | Gemini | Research-oriented synthesis |
+| Web grounded tasks | Gemini | Preferred for grounded web-style generation |
+| Planning | DeepSeek | Structured planning and decomposition |
+| Reasoning / verification | DeepSeek | JSON-heavy structured reasoning |
+
+The routing policy lives in `src/services/routing_policy.py`, and model selection is applied through `src/services/model_router.py`.
 
 ## Specialists
 
@@ -190,6 +222,13 @@ By default, the Streamlit frontend talks to `http://127.0.0.1:8000`.
 - `OPENAI_RESPONSES_MODEL`
 - `OPENAI_EMBEDDING_MODEL`
 - `USE_OPENAI_AGENTS_SDK`
+- `CLAUDE_API_KEY`
+- `CLAUDE_MODEL`
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL`
+- `DEEPSEEK_API_KEY`
+- `DEEPSEEK_MODEL`
+- `MODEL_TIMEOUT_SECONDS`
 - `MONGODB_URI`
 - `MONGODB_DB_NAME`
 - `MONGODB_EPISODIC_COLLECTION`
@@ -201,6 +240,20 @@ By default, the Streamlit frontend talks to `http://127.0.0.1:8000`.
 - `NEERAJ_API_TIMEOUT_SECONDS`
 
 If OpenAI credentials or optional services are missing, the project still runs in a deterministic local mode with graceful fallbacks.
+
+If Claude, Gemini, or DeepSeek credentials are missing, their routes also degrade gracefully and the runtime falls back to deterministic local behavior.
+
+## Validation
+
+Useful local validation commands:
+
+```powershell
+python -m compileall src agent_runtime frontend
+python -m unittest discover
+pytest
+```
+
+At the moment the repository has import-safe discovery and smoke validation, but only limited formal test coverage. `pytest` is included in `requirements.txt` so dedicated tests can be added cleanly.
 
 ## Example Requests
 
@@ -232,6 +285,7 @@ curl -X POST http://127.0.0.1:8000/chat ^
 - FastAPI
 - Streamlit
 - OpenAI SDK
+- Provider-agnostic HTTP model layer
 - OpenAI Agents SDK integration layer
 - MongoDB
 - Playwright
@@ -239,12 +293,12 @@ curl -X POST http://127.0.0.1:8000/chat ^
 
 ## Current Direction
 
-This codebase is already structured like a serious agent platform, but some external tool integrations are still intentionally conservative. The next major jump is turning the placeholder-safe tool surfaces into live search, browser, and execution adapters with stronger production-style evaluation and safety gates.
+This codebase now has a stronger multi-model foundation, but some external tool integrations are still intentionally conservative. The next major jump is turning the placeholder-safe tool surfaces into live search, browser, and execution adapters with stronger production-style evaluation and safety gates.
 
 ## Best Next Improvements
 
 - Replace stubbed browser and search tools with live adapters
-- Add stronger automated evaluation for multi-step workflows
+- Add dedicated pytest coverage for routing, planning, reflection, and evaluation services
 - Expand memory persistence and retrieval quality
 - Increase human approval and policy controls for sensitive actions
 - Add richer frontend traces for debugging agent decisions

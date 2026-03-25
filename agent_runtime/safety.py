@@ -52,12 +52,17 @@ class SafetyPermissions:
                         )
                     )
 
-        if state.verification and state.verification.unverified_claims and state.execution and state.execution.actions:
+        if (
+            state.verification
+            and (state.verification.weakly_supported_claims or state.verification.unverified_claims)
+            and state.execution
+            and state.execution.actions
+        ):
             policy_hits.append(
                 SafetyPolicyHit(
                     policy="unverified_execution_claims",
                     severity="medium",
-                    reason="Some execution claims remain insufficiently verified.",
+                    reason="Some execution claims remain weakly supported or insufficiently verified.",
                     affected_targets=state.execution.actions[:3],
                 )
             )

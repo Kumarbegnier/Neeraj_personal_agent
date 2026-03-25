@@ -110,6 +110,7 @@ class RuntimeLifecycleService:
                 "model_evaluation",
                 {
                     "task_type": evaluation.task_type,
+                    "task_family": evaluation.task_family,
                     "provider": evaluation.provider,
                     "model": evaluation.model,
                     "score": evaluation.score,
@@ -119,5 +120,6 @@ class RuntimeLifecycleService:
                     "latency_ms": evaluation.latency_ms,
                     "task_success": evaluation.task_success,
                     "response_completeness": evaluation.response_completeness,
+                    "retry_count": evaluation.retry_count,
                 },
             )

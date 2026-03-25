@@ -1,7 +1,15 @@
 from __future__ import annotations
 
 from src.core.config import Settings
-from src.schemas.routing import ModelProvider, ModelTaskType, RoutingDecision, RoutingRequest
+from src.schemas.evaluation import ProviderEvaluationResult
+from src.schemas.routing import (
+    HistoricalRoutingStats,
+    ModelProvider,
+    ModelTaskType,
+    RoutingDecision,
+    RoutingRequest,
+    TaskFamilyRoutingWinner,
+)
 
 from .routing_policy import RoutingPolicyService
 
@@ -34,8 +42,9 @@ class ModelRouter:
             )
         )
         default_entry = self._routing_policy.entry(request.task_type)
+        adaptive_decision = self._routing_policy.decide(request)
         explicit_provider = self._provider_for_model(request.selected_model)
-        provider = explicit_provider or request.selected_provider or default_entry.provider
+        provider = explicit_provider or request.selected_provider or adaptive_decision.selected_provider
         normalized_model = self._normalize_model_name(request.selected_model)
         model = normalized_model or self._routing_policy.default_model(provider)
 
@@ -55,13 +64,16 @@ class ModelRouter:
                 f"the explicit model selection '{model}'."
             )
         else:
-            reason = default_entry.rationale
+            reason = adaptive_decision.reason
 
         return RoutingDecision(
             task_type=request.task_type,
+            task_family=adaptive_decision.task_family,
             provider=provider,
             model=model,
             reason=reason,
+            fallback_provider=adaptive_decision.fallback_provider,
+            adaptive_decision=adaptive_decision,
             candidate_models=self._routing_policy.candidate_models(),
         )
 
@@ -73,6 +85,23 @@ class ModelRouter:
 
     def routing_table(self) -> dict[str, str]:
         return self._routing_policy.routing_table()
+
+    def record_evaluation(self, result: ProviderEvaluationResult) -> None:
+        self._routing_policy.record_evaluation(result)
+
+    def historical_stats(
+        self,
+        *,
+        task_type: ModelTaskType,
+        task_family: str,
+    ) -> list[HistoricalRoutingStats]:
+        return self._routing_policy.historical_stats(task_type=task_type, task_family=task_family)
+
+    def adaptive_routing_health(self) -> dict[str, object]:
+        return self._routing_policy.health()
+
+    def evaluation_winners(self, *, limit: int = 12) -> list[TaskFamilyRoutingWinner]:
+        return self._routing_policy.evaluation_winners(limit=limit)
 
     def _provider_for_model(self, model_name: str | None) -> ModelProvider | None:
         if not model_name:

@@ -5,13 +5,19 @@ import json
 from src.services.llm_service import LLMService
 from src.services.modeling.types import ModelTaskType
 
+from .claim_verifier import ClaimVerifier
 from .models import AgentState, VerificationCheck, VerificationReport
 from .runtime_utils import record_model_result, selected_model_override, tokenize_words
 
 
 class VerificationEngine:
-    def __init__(self, llm_service: LLMService | None = None) -> None:
+    def __init__(
+        self,
+        llm_service: LLMService | None = None,
+        claim_verifier: ClaimVerifier | None = None,
+    ) -> None:
         self._llm_service = llm_service
+        self._claim_verifier = claim_verifier or ClaimVerifier()
 
     def verify(self, state: AgentState) -> VerificationReport:
         fallback = self._fallback_report(state)
@@ -41,7 +47,11 @@ class VerificationEngine:
             metadata={"step_index": state.step_index},
         )
         record_model_result(state, model_result)
-        return VerificationReport.model_validate(model_result.output.model_dump())
+        report = VerificationReport.model_validate(model_result.output.model_dump())
+        if report.claim_verification is None and fallback.claim_verification is not None:
+            report = report.model_copy(update={"claim_verification": fallback.claim_verification})
+        state.claim_verification = report.claim_verification
+        return report
 
     def _fallback_report(self, state: AgentState) -> VerificationReport:
         if state.plan is None or state.decision is None or state.execution is None:
@@ -50,6 +60,7 @@ class VerificationEngine:
         checks: list[VerificationCheck] = []
         gaps: list[str] = []
         verified_claims: list[str] = []
+        weakly_supported_claims: list[str] = []
         unverified_claims: list[str] = []
 
         tool_failures = [result for result in state.last_tool_results if result.status not in {"success"}]
@@ -111,37 +122,62 @@ class VerificationEngine:
         if not state.plan.success_criteria:
             gaps.append("The plan lacks explicit success criteria.")
 
-        evidence_text = " ".join(
-            [
-                state.execution.summary,
-                *state.execution.actions,
-                *state.execution.observations,
-                *(evidence for result in state.last_tool_results for evidence in result.evidence),
-                *(record.content for record in state.memory.retrieved[:3]),
-            ]
-        )
-        evidence_tokens = tokenize_words(evidence_text)
-
-        claims = state.execution.claims or state.decision.claims_to_verify
-        for claim in claims:
-            claim_tokens = tokenize_words(claim)
-            overlap = len(claim_tokens & evidence_tokens)
-            if overlap >= max(2, len(claim_tokens) // 4):
-                verified_claims.append(claim)
-            else:
-                unverified_claims.append(claim)
-
-        checks.append(
-            VerificationCheck(
-                name="claim_grounding",
-                status="passed" if not unverified_claims else "needs_attention",
-                rationale="Claims should be grounded in observations, tool evidence, or retrieved memory.",
-                evidence=(verified_claims or ["No claims were verified."])[:4],
-                severity="high" if unverified_claims else "info",
+        claim_report = self._claim_verifier.verify(state, source="verification")
+        state.claim_verification = claim_report
+        if claim_report.enabled:
+            verified_claims = list(claim_report.supported_claims)
+            weakly_supported_claims = list(claim_report.weakly_supported_claims)
+            unverified_claims = list(claim_report.unsupported_claims)
+            checks.append(
+                VerificationCheck(
+                    name="claim_grounding",
+                    status="passed" if claim_report.status == "passed" else "needs_attention",
+                    rationale="Claims should be grounded in observations, tool evidence, or retrieved memory.",
+                    evidence=[
+                        f"{claim.claim_text} -> "
+                        f"{', '.join(link.source_name or link.source_type for link in claim.evidence_links[:2])}"
+                        for claim in claim_report.claims[:4]
+                    ]
+                    or ["No major claims were extracted for explicit verification."],
+                    severity="high" if weakly_supported_claims or unverified_claims else "info",
+                )
             )
-        )
-        if unverified_claims:
-            gaps.append("Some claims were not sufficiently grounded in evidence.")
+            if weakly_supported_claims:
+                gaps.append("Some claims are only weakly supported and should be tightened before final output.")
+            if unverified_claims:
+                gaps.append("Some claims were not sufficiently grounded in evidence.")
+        else:
+            evidence_text = " ".join(
+                [
+                    state.execution.summary,
+                    *state.execution.actions,
+                    *state.execution.observations,
+                    *(evidence for result in state.last_tool_results for evidence in result.evidence),
+                    *(record.content for record in state.memory.retrieved[:3]),
+                ]
+            )
+            evidence_tokens = tokenize_words(evidence_text)
+
+            claims = state.execution.claims or state.decision.claims_to_verify
+            for claim in claims:
+                claim_tokens = tokenize_words(claim)
+                overlap = len(claim_tokens & evidence_tokens)
+                if overlap >= max(2, len(claim_tokens) // 4):
+                    verified_claims.append(claim)
+                else:
+                    unverified_claims.append(claim)
+
+            checks.append(
+                VerificationCheck(
+                    name="claim_grounding",
+                    status="passed" if not unverified_claims else "needs_attention",
+                    rationale="Claims should be grounded in observations, tool evidence, or retrieved memory.",
+                    evidence=(verified_claims or ["No claims were verified."])[:4],
+                    severity="high" if unverified_claims else "info",
+                )
+            )
+            if unverified_claims:
+                gaps.append("Some claims were not sufficiently grounded in evidence.")
 
         if state.retry_count > 0:
             checks.append(
@@ -236,8 +272,10 @@ class VerificationEngine:
             summary=summary,
             checks=checks,
             verified_claims=verified_claims,
+            weakly_supported_claims=weakly_supported_claims,
             unverified_claims=unverified_claims,
             gaps=gaps,
             confidence=confidence,
             retry_recommended=bool(gaps),
+            claim_verification=claim_report,
         )

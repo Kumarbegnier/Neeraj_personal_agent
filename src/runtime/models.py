@@ -54,6 +54,7 @@ from agent_runtime.models import (
     VerificationReport,
     WorkingMemory,
 )
+from src.schemas.claims import ClaimRecord, ClaimVerificationReport, EvidenceLink
 
 __all__ = [
     "ActionDecision",
@@ -64,10 +65,13 @@ __all__ = [
     "AuthContext",
     "AuthMode",
     "Channel",
+    "ClaimRecord",
+    "ClaimVerificationReport",
     "ContextSignal",
     "ContextSnapshot",
     "ControlDecision",
     "ConversationTurn",
+    "EvidenceLink",
     "ExecutionPlan",
     "ExecutionResult",
     "GatewayHeaders",

@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from src.providers import ProviderInvocationError, ProviderRegistry
 from src.schemas.evaluation import EvaluationSummary, ProviderEvaluationResult
-from src.schemas.routing import ModelProvider, ModelTaskType
+from src.schemas.routing import ModelProvider, ModelTaskType, RoutingRequest
 
 from .model_router import ModelRouter
 from .provider_request_factory import build_structured_provider_request
@@ -39,9 +39,17 @@ class EvaluationService:
         selected_providers = list(providers or ModelProvider)
         results: list[ProviderEvaluationResult] = []
         winner: ProviderEvaluationResult | None = None
+        task_family = self._task_family(task_type=task_type, metadata=metadata)
 
         for provider in selected_providers:
-            route = self._model_router.route(task_type, selected_provider=provider)
+            route = self._model_router.route(
+                RoutingRequest(
+                    task_type=task_type,
+                    task_family=task_family,
+                    selected_provider=provider,
+                    metadata=dict(metadata or {}),
+                )
+            )
             request = build_structured_provider_request(
                 task_type=task_type,
                 model=route.model,
@@ -74,16 +82,20 @@ class EvaluationService:
                 notes.append("The output validated structurally but did not look complete enough to count as a success.")
 
             result = ProviderEvaluationResult(
+                task_type=task_type,
+                task_family=task_family,
                 provider=provider,
                 model=route.model,
                 structured_output_validity=structured_output_validity,
                 latency_ms=latency_ms,
                 task_success=success,
                 response_completeness=completeness,
+                retry_count=0 if success and structured_output_validity else 1,
                 notes=notes,
-                used_fallback=False,
+                used_fallback=not (success and structured_output_validity),
                 metadata=dict(metadata or {}),
             )
+            self._model_router.record_evaluation(result)
             results.append(result)
             if winner is None or self._score(result) > self._score(winner):
                 winner = result
@@ -91,6 +103,7 @@ class EvaluationService:
         summary = self._summary(task_type, results, winner)
         return EvaluationSummary(
             task_type=task_type,
+            task_family=task_family,
             results=results,
             winner=winner.provider if winner is not None else None,
             summary=summary,
@@ -120,3 +133,12 @@ class EvaluationService:
             f"valid={winner.structured_output_validity}, success={winner.task_success}, "
             f"completeness={winner.response_completeness:.2f}, latency_ms={winner.latency_ms}."
         )
+
+    def _task_family(
+        self,
+        *,
+        task_type: ModelTaskType,
+        metadata: dict[str, Any] | None,
+    ) -> str:
+        request = RoutingRequest(task_type=task_type, metadata=dict(metadata or {}))
+        return self._model_router.route(request).task_family

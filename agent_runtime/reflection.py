@@ -56,7 +56,7 @@ class ReflectionEngine:
         blocked_tools: list[str] = []
         route_bias = state.route.agent_name if state.route else None
 
-        if state.verification.unverified_claims:
+        if state.verification.weakly_supported_claims or state.verification.unverified_claims:
             issues.append("Some claims still lack strong supporting evidence.")
             repairs.append("Restrict the next attempt to evidence-producing tools and verified observations.")
             if state.route and state.route.agent_name == "general":

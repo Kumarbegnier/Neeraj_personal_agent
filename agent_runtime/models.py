@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 from src.schemas.adaptive import ArchitectureDecision, LoopPhase, LoopState
+from src.schemas.claims import ClaimVerificationReport
 from src.schemas.context import ContextPacket
 from src.schemas.handoff import HandoffPacket
 from src.schemas.observability import AutonomyMetrics, RuntimeTrace, StepTrace
@@ -367,10 +368,12 @@ class VerificationResult(BaseModel):
     summary: str
     checks: list[VerificationCheck] = Field(default_factory=list)
     verified_claims: list[str] = Field(default_factory=list)
+    weakly_supported_claims: list[str] = Field(default_factory=list)
     unverified_claims: list[str] = Field(default_factory=list)
     gaps: list[str] = Field(default_factory=list)
     confidence: float = 0.75
     retry_recommended: bool = False
+    claim_verification: ClaimVerificationReport | None = None
 
 
 VerificationReport = VerificationResult
@@ -406,6 +409,7 @@ class ModelExecutionRecord(BaseModel):
 
 class ModelEvaluationRecord(BaseModel):
     task_type: str
+    task_family: str = ""
     provider: str
     model: str
     score: float = 0.0
@@ -416,6 +420,7 @@ class ModelEvaluationRecord(BaseModel):
     latency_ms: int | None = None
     task_success: bool | None = None
     response_completeness: float | None = None
+    retry_count: int | None = None
 
 
 class PermissionDecision(BaseModel):
@@ -461,6 +466,7 @@ class StructuredResponse(BaseModel):
     response: str
     highlights: list[str] = Field(default_factory=list)
     approval_note: str = ""
+    claim_verification_note: str = ""
 
 
 class ObservationRecord(BaseModel):
@@ -547,6 +553,7 @@ class AgentState(BaseModel):
     tool_history: list[ToolResult] = Field(default_factory=list)
     execution: ExecutionResult | None = None
     verification: VerificationResult | None = None
+    claim_verification: ClaimVerificationReport | None = None
     reflection: ReflectionReport | None = None
     stop_decision: StopDecision | None = None
     safety: SafetyReport | None = None
@@ -586,6 +593,7 @@ class InteractionResponse(BaseModel):
     task_graph: TaskGraph
     skills: list[SkillDescriptor] = Field(default_factory=list)
     verification: VerificationResult
+    claim_verification: ClaimVerificationReport | None = None
     reflection: ReflectionReport
     safety: SafetyReport
     memory: MemorySnapshot

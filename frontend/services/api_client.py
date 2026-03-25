@@ -7,6 +7,7 @@ import httpx
 
 from src.schemas.catalog import AgentCatalog, AuditLogResponse, ToolCatalog
 from src.schemas.platform import ChatResponse, ExecuteResponse, HealthResponse, PlanResponse
+from src.schemas.routing import TaskFamilyRoutingWinner
 from src.runtime.models import InteractionResponse, RuntimeTrace, SessionState
 from src.runtime.workflow import StageDescriptor
 from src.schemas.platform import ArchitectureResponse
@@ -72,6 +73,10 @@ class ApiClient:
     def runtime_traces(self, limit: int = 25) -> list[RuntimeTrace]:
         payload = self._request("GET", f"/observability/runtime-traces?limit={limit}")
         return [RuntimeTrace.model_validate(item) for item in payload]
+
+    def evaluation_winners(self, limit: int = 12) -> list[TaskFamilyRoutingWinner]:
+        payload = self._request("GET", f"/routing/evaluation-winners?limit={limit}")
+        return [TaskFamilyRoutingWinner.model_validate(item) for item in payload]
 
     def session_state(self, user_id: str, session_id: str) -> SessionState:
         payload = self._request("GET", f"/sessions/{user_id}/{session_id}")

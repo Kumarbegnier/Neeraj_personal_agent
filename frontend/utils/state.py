@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from src.schemas.catalog import AgentCatalog, AuditEvent, ToolCatalog
 from src.schemas.platform import HealthResponse, PlanResponse
+from src.schemas.routing import TaskFamilyRoutingWinner
 
 from frontend.config import FrontendConfig
 from frontend.view_models import summarize_memory
@@ -55,6 +56,7 @@ def ensure_session_state(state: MutableMapping[str, Any], config: FrontendConfig
         "tool_catalog": None,
         "audit_events": [],
         "runtime_traces": [],
+        "evaluation_winners": [],
     }
     for key, value in defaults.items():
         state.setdefault(key, value)
@@ -155,6 +157,13 @@ def sync_runtime_traces(
     state["runtime_traces"] = traces
 
 
+def sync_evaluation_winners(
+    state: MutableMapping[str, Any],
+    winners: list[TaskFamilyRoutingWinner],
+) -> None:
+    state["evaluation_winners"] = winners
+
+
 def current_memory(state: MutableMapping[str, Any]) -> MemorySnapshot | None:
     interaction = state.get("last_interaction")
     if interaction is not None:
@@ -179,6 +188,7 @@ def reset_workspace(state: MutableMapping[str, Any], *, new_session: bool = Fals
     state["last_session_snapshot"] = None
     state["audit_events"] = []
     state["runtime_traces"] = []
+    state["evaluation_winners"] = []
     state["selected_agent"] = "Awaiting first routing decision"
     state["agent_status"] = "idle"
     state["risk_level"] = "unknown"

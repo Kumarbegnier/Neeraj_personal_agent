@@ -27,6 +27,7 @@ class GenerationTelemetry(BaseModel):
 
 class EvaluationTelemetry(BaseModel):
     task_type: str
+    task_family: str = ""
     provider: str
     model: str
     score: float
@@ -37,6 +38,7 @@ class EvaluationTelemetry(BaseModel):
     latency_ms: int | None = None
     task_success: bool | None = None
     response_completeness: float | None = None
+    retry_count: int | None = None
 
 
 T = TypeVar("T", bound=BaseModel)

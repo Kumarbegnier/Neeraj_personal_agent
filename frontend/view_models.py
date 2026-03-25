@@ -5,12 +5,16 @@ from typing import Literal
 from typing import Any
 
 from src.schemas.catalog import AgentDescriptor, AuditEvent, ToolDescriptor
+from src.schemas.platform import HealthResponse
+from src.schemas.routing import TaskFamilyRoutingWinner
 from src.runtime.models import (
     AutonomyMetrics,
     ConversationTurn,
     ExecutionPlan,
+    InteractionResponse,
     MemoryRecord,
     MemorySnapshot,
+    ModelExecutionRecord,
     RuntimeTrace,
     StateTransition,
     StepTrace,
@@ -137,6 +141,107 @@ def tool_result_rows(results: Sequence[ToolResult]) -> list[dict[str, Any]]:
     ]
 
 
+def tool_timeline_rows(results: Sequence[ToolResult]) -> list[dict[str, Any]]:
+    return [
+        {
+            "Sequence": index + 1,
+            "Tool": result.tool_name,
+            "Status": humanize_label(result.status),
+            "Risk": humanize_label(result.risk_level),
+            "Verification": humanize_label(result.verification.status),
+            "Dry Run": "Yes" if result.dry_run else "No",
+            "Retryable": "Yes" if result.retryable else "No",
+            "Evidence": compact_text(" | ".join(result.evidence[:2]) or "No evidence captured.", limit=140),
+        }
+        for index, result in enumerate(results)
+    ]
+
+
+def provider_selection_rows(
+    interaction: InteractionResponse | None,
+    health: HealthResponse | None,
+) -> list[dict[str, Any]]:
+    if interaction is not None and interaction.model_runs:
+        return [_provider_run_row(run) for run in interaction.model_runs]
+
+    routing_entries = ((health.llm or {}).get("routing_entries") if health is not None else None) or []
+    return [
+        {
+            "Stage": humanize_label(str(entry.get("task_type", ""))),
+            "Provider": humanize_label(str(entry.get("provider", ""))),
+            "Model": str(entry.get("default_model", "Unknown")),
+            "Status": "Default routing",
+            "Latency (ms)": "N/A",
+            "Source": "Routing table",
+        }
+        for entry in routing_entries
+    ]
+
+
+def architecture_path_rows(interaction: InteractionResponse | None) -> list[dict[str, Any]]:
+    if interaction is None or interaction.architecture is None:
+        return []
+    architecture = interaction.architecture
+    return [
+        {
+            "Mode": humanize_label(architecture.mode.value),
+            "Label": architecture.pattern_label or humanize_label(architecture.reasoning.selected_pattern),
+            "Primary Agent": humanize_label(architecture.primary_agent),
+            "Supporting Agents": ", ".join(humanize_label(agent) for agent in architecture.supporting_agents) or "None",
+            "Loop Strategy": humanize_label(architecture.loop_strategy),
+            "Verifier": "Yes" if architecture.requires_verifier else "No",
+            "Fanout": architecture.parallel_fanout,
+        }
+    ]
+
+
+def reflection_summary_lines(interaction: InteractionResponse | None) -> list[str]:
+    if interaction is None:
+        return []
+    lines = [interaction.reflection.summary]
+    if interaction.reflection.repairs:
+        lines.append(f"Repairs: {', '.join(interaction.reflection.repairs[:2])}")
+    if interaction.reflection.next_actions:
+        lines.append(f"Next: {', '.join(interaction.reflection.next_actions[:2])}")
+    if interaction.reflection.lessons:
+        lines.append(f"Lessons: {', '.join(interaction.reflection.lessons[:2])}")
+    return [line for line in lines if line]
+
+
+def evaluation_winner_rows(winners: Sequence[TaskFamilyRoutingWinner]) -> list[dict[str, Any]]:
+    return [
+        {
+            "Task Family": humanize_label(winner.task_family),
+            "Task Type": humanize_label(winner.task_type.value),
+            "Winner": humanize_label(winner.selected_provider.value),
+            "Fallback": humanize_label(winner.fallback_provider.value),
+            "Score": f"{winner.winning_score:.3f}",
+            "Samples": winner.sample_count,
+            "Success": format_ratio(winner.task_success_rate),
+            "Validity": format_ratio(winner.structured_output_validity_rate),
+            "Completeness": f"{winner.average_completeness:.2f}",
+            "Latency (ms)": winner.average_latency_ms if winner.average_latency_ms is not None else "N/A",
+            "Retry": format_ratio(winner.retry_frequency),
+        }
+        for winner in winners
+    ]
+
+
+def memory_preview_rows(memory: MemorySnapshot | None) -> list[dict[str, Any]]:
+    if memory is None:
+        return []
+    return [
+        {
+            "Source": record.source,
+            "Type": humanize_label(record.memory_type),
+            "Score": record.score,
+            "Tags": ", ".join(record.tags[:3]) or "None",
+            "Preview": compact_text(record.content, limit=160),
+        }
+        for record in memory.retrieved[:8]
+    ]
+
+
 def trace_rows(events: Sequence[TraceEvent]) -> list[dict[str, Any]]:
     return [
         {
@@ -256,3 +361,14 @@ def audit_rows(events: Sequence[AuditEvent]) -> list[dict[str, Any]]:
         }
         for event in events
     ]
+
+
+def _provider_run_row(run: ModelExecutionRecord) -> dict[str, Any]:
+    return {
+        "Stage": humanize_label(run.stage),
+        "Provider": humanize_label(run.provider),
+        "Model": run.model,
+        "Status": humanize_label(run.status),
+        "Latency (ms)": run.latency_ms if run.latency_ms else "N/A",
+        "Source": humanize_label(run.source),
+    }

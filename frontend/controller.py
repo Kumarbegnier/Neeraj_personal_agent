@@ -6,6 +6,7 @@ from src.runtime.models import InteractionResponse
 
 from .config import FrontendConfig
 from .services.api_client import ApiClient, ApiClientError, RequestEnvelope
+from .services.runtime_intelligence import RuntimeIntelligenceService
 from .utils.state import (
     append_message,
     clear_error,
@@ -14,6 +15,7 @@ from .utils.state import (
     set_error,
     sync_agent_catalog,
     sync_audit_events,
+    sync_evaluation_winners,
     sync_health,
     sync_interaction,
     sync_plan,
@@ -84,6 +86,36 @@ def refresh_runtime_traces(state: MutableMapping[str, Any], client: ApiClient, l
         return True
     except ApiClientError as exc:
         _record_client_error(state, "observability_error", exc)
+        return False
+
+
+def refresh_runtime_intelligence(
+    state: MutableMapping[str, Any],
+    client: ApiClient,
+    *,
+    trace_limit: int = 25,
+    winners_limit: int = 12,
+) -> bool:
+    clear_error(state)
+    try:
+        snapshot = RuntimeIntelligenceService(client).load(
+            user_id=str(state["user_id"]),
+            session_id=str(state["session_id"]),
+            trace_limit=trace_limit,
+            winners_limit=winners_limit,
+        )
+        sync_health(state, snapshot.health)
+        sync_session_snapshot(state, snapshot.session_snapshot)
+        sync_runtime_traces(state, snapshot.runtime_traces)
+        sync_evaluation_winners(state, snapshot.evaluation_winners)
+        record_activity(
+            state,
+            "runtime_intelligence_refresh",
+            "Fetched dashboard intelligence for health, session memory, routing winners, and runtime traces.",
+        )
+        return True
+    except ApiClientError as exc:
+        _record_client_error(state, "runtime_intelligence_error", exc)
         return False
 
 

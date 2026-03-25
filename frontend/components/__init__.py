@@ -1,4 +1,5 @@
 from .chat_view import render_chat_workspace, render_runtime_notices
+from .intelligence_panels import render_runtime_intelligence_dashboard
 from .sidebar import render_sidebar
 from .status_panels import (
     render_empty_state,
@@ -14,6 +15,7 @@ __all__ = [
     "render_empty_state",
     "render_execution_panel",
     "render_home_dashboard",
+    "render_runtime_intelligence_dashboard",
     "render_logs_panel",
     "render_memory_panel",
     "render_plan_panel",

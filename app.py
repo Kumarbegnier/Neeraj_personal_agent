@@ -32,15 +32,16 @@ render_runtime_notices(st.session_state)
 
 st.write(
     "Use this workspace as the control room for the Neeraj AI OS runtime: monitor backend health, "
-    "inspect the active architecture, and move into the specialized pages for chat, planning, memory, logs, and settings."
+    "inspect the active architecture, and move into the specialized pages for chat, planning, memory, logs, runtime intelligence, and settings."
 )
 
-navigation = st.columns(5)
+navigation = st.columns(6)
 navigation[0].page_link("pages/1_Chat.py", label="Chat Workspace", use_container_width=True)
 navigation[1].page_link("pages/2_Agents.py", label="Agents", use_container_width=True)
 navigation[2].page_link("pages/3_Memory.py", label="Memory", use_container_width=True)
 navigation[3].page_link("pages/4_Logs.py", label="Logs", use_container_width=True)
-navigation[4].page_link("pages/5_Settings.py", label="Settings", use_container_width=True)
+navigation[4].page_link("pages/6_Intelligence.py", label="Intelligence", use_container_width=True)
+navigation[5].page_link("pages/5_Settings.py", label="Settings", use_container_width=True)
 
 actions = st.columns(4)
 if actions[0].button("Refresh backend health", use_container_width=True):

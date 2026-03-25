@@ -11,6 +11,7 @@ from src.services.reflection_service import ReflectionService
 
 from .agents import build_agent_registry
 from .architecture_selector import ArchitectureSelector
+from .claim_verifier import ClaimVerifier
 from .context_builder import ContextBuilder
 from .control import OrchestratorBrain
 from .execution import ExecutionEngine
@@ -252,6 +253,14 @@ class Orchestrator:
                     if state.handoff_packet
                     else []
                 ),
+                "claim_verification_summary": (
+                    state.claim_verification.summary if state.claim_verification else ""
+                ),
+                "unsupported_claims": (
+                    state.claim_verification.unsupported_claims[:3]
+                    if state.claim_verification
+                    else []
+                ),
             },
             active_goals=state.context.active_goals if state.context else [],
         )
@@ -308,6 +317,7 @@ class Orchestrator:
             task_graph=state.task_graph or TaskGraph(state="completed", active_path=[], nodes=[]),
             skills=state.skills,
             verification=state.verification or skipped_verification(),
+            claim_verification=state.claim_verification,
             reflection=state.reflection or skipped_reflection(),
             safety=state.safety or reviewed_safety(),
             memory=state.memory,
@@ -989,6 +999,7 @@ class Orchestrator:
             task_graph=state.task_graph,
             skills=[],
             verification=verification,
+            claim_verification=state.claim_verification,
             reflection=reflection,
             safety=safety,
             memory=state.memory,
@@ -1195,13 +1206,18 @@ def build_default_orchestrator(llm_service: LLMService | None = None) -> Orchest
         skill_library=skill_library,
         agents=agents,
     )
-    verification_engine = VerificationEngine(resolved_llm_service)
+    claim_verifier = ClaimVerifier()
+    verification_engine = VerificationEngine(resolved_llm_service, claim_verifier=claim_verifier)
     reflection_engine = ReflectionEngine(resolved_llm_service)
     handoff_engine = HandoffEngine()
     runtime_observability = RuntimeObservabilityEngine()
     stopping_engine = StoppingEngine()
     safety_permissions = SafetyPermissions()
-    response_composer = ResponseComposer(resolved_llm_service, reflection_service)
+    response_composer = ResponseComposer(
+        resolved_llm_service,
+        reflection_service,
+        claim_verifier=claim_verifier,
+    )
 
     return Orchestrator(
         memory_system=memory_system,

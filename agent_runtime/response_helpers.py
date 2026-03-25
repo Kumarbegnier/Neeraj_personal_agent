@@ -32,10 +32,12 @@ def skipped_verification(summary: str = "Verification did not run.") -> Verifica
         summary=summary,
         checks=[],
         verified_claims=[],
+        weakly_supported_claims=[],
         unverified_claims=[],
         gaps=[],
         confidence=0.0,
         retry_recommended=False,
+        claim_verification=None,
     )
 
 

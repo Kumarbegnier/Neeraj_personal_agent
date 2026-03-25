@@ -15,6 +15,7 @@ from src.runtime.models import (
 )
 from src.schemas.catalog import AgentCatalog, AuditLogResponse, ToolCatalog
 from src.core.config import get_settings
+from src.schemas.routing import TaskFamilyRoutingWinner
 from src.safety.audit import AuditService
 from src.services.observability_service import ObservabilityService
 from src.services.runtime_lifecycle import RuntimeLifecycleService
@@ -67,6 +68,9 @@ class OrchestrationService:
 
     def get_runtime_traces(self, limit: int = 25) -> list[RuntimeTrace]:
         return self.lifecycle.recent_runtime_traces(limit=limit)
+
+    def get_evaluation_winners(self, limit: int = 12) -> list[TaskFamilyRoutingWinner]:
+        return self.llm_service.evaluation_winners(limit=limit)
 
     def health(self) -> dict[str, Any]:
         return {

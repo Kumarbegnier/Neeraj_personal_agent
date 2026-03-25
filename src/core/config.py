@@ -54,6 +54,13 @@ class Settings(BaseModel):
 
     audit_log_file: str = Field(default_factory=lambda: os.getenv("AUDIT_LOG_FILE", "audit.log"))
     allow_tool_side_effects: bool = Field(default_factory=lambda: _env_bool("ALLOW_TOOL_SIDE_EFFECTS", False))
+    routing_history_limit: int = Field(default_factory=lambda: int(os.getenv("ROUTING_HISTORY_LIMIT", "40")))
+    adaptive_routing_min_samples: int = Field(
+        default_factory=lambda: int(os.getenv("ADAPTIVE_ROUTING_MIN_SAMPLES", "3"))
+    )
+    adaptive_routing_min_margin: float = Field(
+        default_factory=lambda: float(os.getenv("ADAPTIVE_ROUTING_MIN_MARGIN", "0.05"))
+    )
 
 
 @lru_cache(maxsize=1)

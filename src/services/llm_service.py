@@ -7,7 +7,8 @@ from pydantic import BaseModel
 
 from src.core.config import get_settings
 from src.providers import ProviderInvocationError, ProviderRegistry
-from src.schemas.routing import ModelProvider, ModelTaskType
+from src.schemas.evaluation import ProviderEvaluationResult
+from src.schemas.routing import ModelProvider, ModelTaskType, RoutingRequest
 from src.services.evaluation_service import EvaluationService
 from src.services.model_router import ModelRouter
 from src.services.modeling.types import (
@@ -63,6 +64,7 @@ class LLMService:
             "providers": self._provider_health(),
             "routing_policy": self.model_router.routing_table(),
             "routing_entries": [entry.model_dump(mode="json") for entry in self.routing_policy.entries()],
+            "adaptive_routing": self.model_router.adaptive_routing_health(),
             "tool_execution_provider": ModelProvider.OPENAI.value,
             "reflection_provider": ModelProvider.CLAUDE.value,
             "research_provider": ModelProvider.GEMINI.value,
@@ -79,7 +81,11 @@ class LLMService:
             "providers": self._provider_health(),
             "routing_policy": self.model_router.routing_table(),
             "routing_entries": [entry.model_dump(mode="json") for entry in self.routing_policy.entries()],
+            "adaptive_routing": self.model_router.adaptive_routing_health(),
         }
+
+    def evaluation_winners(self, *, limit: int = 12):
+        return self.model_router.evaluation_winners(limit=limit)
 
     def agents_sdk_available(self) -> bool:
         return bool(self.settings.use_openai_agents_sdk and SDKAgent is not None and Runner is not None)
@@ -99,9 +105,13 @@ class LLMService:
         web_grounded: bool | None = None,
     ) -> StructuredGenerationResult[BaseModel]:
         route = self.model_router.route(
-            task_type,
-            selected_model=selected_model,
-            selected_provider=selected_provider,
+            RoutingRequest(
+                task_type=task_type,
+                task_family=self._task_family(task_type=task_type, metadata=metadata),
+                selected_model=selected_model,
+                selected_provider=selected_provider,
+                metadata=dict(metadata or {}),
+            )
         )
         request = build_structured_provider_request(
             task_type=task_type,
@@ -147,11 +157,28 @@ class LLMService:
         completeness = estimate_response_completeness(output)
         structured_output_validity = not used_fallback
         task_success = structured_task_success(output if structured_output_validity else None, structured_output_validity)
+        retry_count = 0 if task_success and structured_output_validity else 1
         score = self._evaluation_score(
             structured_output_validity=structured_output_validity,
             task_success=task_success,
             completeness=completeness,
             latency_ms=latency_ms,
+        )
+        self.model_router.record_evaluation(
+            ProviderEvaluationResult(
+                task_type=task_type,
+                task_family=route.task_family or task_type.value,
+                provider=route.provider,
+                model=route.model,
+                structured_output_validity=structured_output_validity,
+                latency_ms=latency_ms,
+                task_success=task_success,
+                response_completeness=completeness,
+                retry_count=retry_count,
+                notes=list(notes),
+                used_fallback=used_fallback,
+                metadata=dict(metadata or {}),
+            )
         )
 
         run = GenerationTelemetry(
@@ -169,6 +196,7 @@ class LLMService:
         )
         evaluation = EvaluationTelemetry(
             task_type=task_type.value,
+            task_family=route.task_family,
             provider=route.provider.value,
             model=route.model,
             score=score,
@@ -183,6 +211,7 @@ class LLMService:
             latency_ms=latency_ms,
             task_success=task_success,
             response_completeness=completeness,
+            retry_count=retry_count,
         )
         return StructuredGenerationResult(
             output=output,
@@ -286,3 +315,15 @@ class LLMService:
             - latency_penalty
         )
         return round(max(score, 0.0), 2)
+
+    def _task_family(
+        self,
+        *,
+        task_type: ModelTaskType,
+        metadata: dict[str, Any] | None,
+    ) -> str:
+        raw_family = (metadata or {}).get("task_family")
+        if raw_family is None:
+            return task_type.value
+        normalized = str(raw_family).strip().lower().replace("-", "_").replace(" ", "_")
+        return normalized or task_type.value

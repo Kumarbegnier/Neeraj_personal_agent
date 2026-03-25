@@ -18,6 +18,7 @@ from src.schemas.platform import (
     PlanRequest,
     PlanResponse,
 )
+from src.schemas.routing import TaskFamilyRoutingWinner
 from src.services.orchestration_service import OrchestrationService
 
 router = APIRouter()
@@ -38,6 +39,7 @@ def read_root():
             "/tools",
             "/audit/logs",
             "/observability/runtime-traces",
+            "/routing/evaluation-winners",
             "/sessions/{user_id}/{session_id}",
         ],
     }
@@ -92,6 +94,14 @@ def get_runtime_traces(
     service: OrchestrationService = Depends(get_orchestration_service),
 ):
     return service.get_runtime_traces(limit=limit)
+
+
+@router.get("/routing/evaluation-winners", response_model=list[TaskFamilyRoutingWinner])
+def get_routing_evaluation_winners(
+    limit: int = 12,
+    service: OrchestrationService = Depends(get_orchestration_service),
+):
+    return service.get_evaluation_winners(limit=limit)
 
 
 @router.get("/sessions/{user_id}/{session_id}", response_model=SessionState)

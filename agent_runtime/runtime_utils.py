@@ -69,6 +69,7 @@ def record_model_result(state: AgentState, result: StructuredGenerationResult) -
     state.model_evaluations.append(
         ModelEvaluationRecord(
             task_type=result.evaluation.task_type,
+            task_family=result.evaluation.task_family,
             provider=result.evaluation.provider,
             model=result.evaluation.model,
             score=result.evaluation.score,
@@ -79,6 +80,7 @@ def record_model_result(state: AgentState, result: StructuredGenerationResult) -
             latency_ms=result.evaluation.latency_ms,
             task_success=result.evaluation.task_success,
             response_completeness=result.evaluation.response_completeness,
+            retry_count=result.evaluation.retry_count,
         )
     )
     state.trace.append(

@@ -26,6 +26,7 @@ class HealthResponse(BaseModel):
     memory: dict[str, Any] = Field(default_factory=dict)
     semantic_memory: dict[str, Any] = Field(default_factory=dict)
     audit: dict[str, Any] = Field(default_factory=dict)
+    observability: dict[str, Any] = Field(default_factory=dict)
 
 
 class ChatRequest(UserRequest):

@@ -6,11 +6,14 @@ from typing import Any
 
 from src.schemas.catalog import AgentDescriptor, AuditEvent, ToolDescriptor
 from src.runtime.models import (
+    AutonomyMetrics,
     ConversationTurn,
     ExecutionPlan,
     MemoryRecord,
     MemorySnapshot,
+    RuntimeTrace,
     StateTransition,
+    StepTrace,
     TaskGraph,
     ToolResult,
     TraceEvent,
@@ -46,6 +49,10 @@ def compact_text(value: str, *, limit: int = 220) -> str:
     if len(normalized) <= limit:
         return normalized
     return f"{normalized[: limit - 3].rstrip()}..."
+
+
+def format_ratio(value: float) -> str:
+    return f"{value:.0%}"
 
 
 def summarize_memory(memory: MemorySnapshot | None) -> str:
@@ -138,6 +145,54 @@ def trace_rows(events: Sequence[TraceEvent]) -> list[dict[str, Any]]:
             "Payload Keys": ", ".join(event.payload.keys()) or "None",
         }
         for event in events
+    ]
+
+
+def step_trace_rows(steps: Sequence[StepTrace]) -> list[dict[str, Any]]:
+    return [
+        {
+            "Step": step.step_index,
+            "Agent": humanize_label(step.agent_name),
+            "Phase": humanize_label(step.phase),
+            "Status": humanize_label(step.status),
+            "Autonomous": "Yes" if step.autonomous else "No",
+            "Approvals": step.approvals_requested,
+            "Retry": "Yes" if step.retry_triggered else "No",
+            "Recovered": "Yes" if step.recovered_after_failure else "No",
+            "Tools": ", ".join(step.selected_tools) or "None",
+            "Summary": compact_text(step.summary, limit=120),
+        }
+        for step in steps
+    ]
+
+
+def runtime_trace_rows(traces: Sequence[RuntimeTrace]) -> list[dict[str, Any]]:
+    return [
+        {
+            "Recorded At": trace.recorded_at.isoformat(),
+            "Request": trace.request_id or "Unknown",
+            "Agent": humanize_label(trace.assigned_agent),
+            "Architecture": humanize_label(trace.architecture_mode),
+            "Termination": humanize_label(trace.termination_reason),
+            "Steps": trace.autonomy_metrics.total_steps,
+            "Autonomous": trace.autonomy_metrics.autonomous_steps_count,
+            "Human Ratio": format_ratio(trace.autonomy_metrics.human_intervention_ratio),
+            "Summary": compact_text(trace.summary, limit=120),
+        }
+        for trace in traces
+    ]
+
+
+def autonomy_metrics_rows(metrics: AutonomyMetrics | None) -> list[dict[str, Any]]:
+    if metrics is None:
+        return []
+    return [
+        {"Metric": "Autonomous steps", "Value": metrics.autonomous_steps_count},
+        {"Metric": "Approvals requested", "Value": metrics.approvals_requested},
+        {"Metric": "Retries used", "Value": metrics.retries_used},
+        {"Metric": "Recoveries after failure", "Value": metrics.recovery_count_after_failure},
+        {"Metric": "Human intervention ratio", "Value": format_ratio(metrics.human_intervention_ratio)},
+        {"Metric": "Irreversible actions attempted", "Value": metrics.irreversible_actions_attempted},
     ]
 
 

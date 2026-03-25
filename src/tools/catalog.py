@@ -27,6 +27,12 @@ TOOL_DESCRIPTORS = [
     ToolDescriptor(name="send_email_draft", category="communication", description="Create a safe draft outbound message artifact.", risk_level="medium", side_effect="draft"),
     ToolDescriptor(name="search_web", category="research", description="Return structured research leads for a query."),
     ToolDescriptor(name="browser_search", category="research", description="Prepare a browser-first evidence collection flow.", risk_level="medium"),
+    ToolDescriptor(
+        name="verify_browser_goal",
+        category="browser",
+        description="Verify whether the current browser goal was reached safely after a major browser step.",
+        risk_level="medium",
+    ),
     ToolDescriptor(name="summarize_file", category="file", description="Read and summarize a local file."),
     ToolDescriptor(name="generate_code", category="coding", description="Generate starter code or implementation sketches."),
     ToolDescriptor(name="open_page", category="browser", description="Open a page using a browser abstraction.", risk_level="medium"),

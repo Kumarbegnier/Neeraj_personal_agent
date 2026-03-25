@@ -6,7 +6,7 @@ from src.services.llm_service import LLMService
 from src.services.modeling.types import ModelTaskType
 
 from .agents import BaseAgent
-from .models import AgentState, ExecutionResult
+from .models import AgentState, ExecutionResult, ToolRequest
 from .tools import ToolLayer
 from .runtime_utils import record_model_result, selected_model_override
 
@@ -16,13 +16,19 @@ class ExecutionEngine:
         self._tool_layer = tool_layer
         self._llm_service = llm_service
 
-    def execute(self, state: AgentState, agent: BaseAgent) -> ExecutionResult:
+    def execute(
+        self,
+        state: AgentState,
+        agent: BaseAgent,
+        tool_requests: list[ToolRequest] | None = None,
+    ) -> ExecutionResult:
         if state.decision is None:
             raise ValueError("Agent decision must exist before execution.")
         if state.context is None:
             raise ValueError("Context must exist before execution.")
 
-        tool_results = self._tool_layer.run_many(state.pending_tool_requests, state.context)
+        planned_requests = tool_requests if tool_requests is not None else state.pending_tool_requests
+        tool_results = self._tool_layer.run_many(planned_requests, state.context)
         fallback = agent.assess(state, state.decision, tool_results)
         if self._llm_service is None:
             return fallback
@@ -38,7 +44,9 @@ class ExecutionEngine:
             user_prompt="\n".join(
                 [
                     f"Agent name: {agent.name}",
+                    f"Architecture mode: {state.architecture.mode.value if state.architecture else ''}",
                     f"Decision summary: {state.decision.summary}",
+                    f"Selected tools: {json.dumps([request.model_dump(mode='json') for request in planned_requests], ensure_ascii=True, default=str)}",
                     f"Tool results: {json.dumps([result.model_dump(mode='json') for result in tool_results], ensure_ascii=True, default=str)}",
                     f"Fallback execution result: {fallback.model_dump_json()}",
                 ]

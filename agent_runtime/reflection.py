@@ -72,7 +72,11 @@ class ReflectionEngine:
             if state.route and state.route.agent_name != "general":
                 route_bias = "general"
 
-        error_tools = [result.tool_name for result in state.last_tool_results if result.status in {"error", "unavailable"}]
+        error_tools = [
+            result.tool_name
+            for result in state.last_tool_results
+            if result.status in {"error", "unavailable", "invalid_input", "invalid_output", "verification_failed"}
+        ]
         if error_tools:
             issues.append(f"Unavailable or erroring tools: {', '.join(error_tools)}.")
             repairs.append("Exclude failing tools from the next action set.")

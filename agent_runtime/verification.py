@@ -29,6 +29,7 @@ class VerificationEngine:
             user_prompt="\n".join(
                 [
                     f"Objective: {state.request.message}",
+                    f"Architecture mode: {state.architecture.mode.value if state.architecture else ''}",
                     f"Latest execution summary: {state.execution.summary if state.execution else ''}",
                     f"Tool statuses: {json.dumps([result.status for result in state.last_tool_results], ensure_ascii=True)}",
                     f"Claims to verify: {json.dumps(state.execution.claims if state.execution else [], ensure_ascii=True)}",
@@ -52,6 +53,11 @@ class VerificationEngine:
         unverified_claims: list[str] = []
 
         tool_failures = [result for result in state.last_tool_results if result.status not in {"success"}]
+        contract_failures = [
+            result
+            for result in state.last_tool_results
+            if result.verification.status not in {"passed", "skipped"}
+        ]
         checks.append(
             VerificationCheck(
                 name="tool_execution_health",
@@ -63,6 +69,22 @@ class VerificationEngine:
         )
         if tool_failures:
             gaps.append("One or more tool calls were gated, unavailable, or errored.")
+
+        checks.append(
+            VerificationCheck(
+                name="tool_contract_postconditions",
+                status="passed" if not contract_failures else "needs_attention",
+                rationale="Each tool result should satisfy its typed contract and postcondition verifier.",
+                evidence=[
+                    f"{result.tool_name}:{result.verification.status}"
+                    for result in state.last_tool_results
+                ]
+                or ["No tool contract verification results were recorded."],
+                severity="high" if contract_failures else "info",
+            )
+        )
+        if contract_failures:
+            gaps.append("One or more tool outputs failed contract validation or postcondition checks.")
 
         fresh_observations = state.execution.observations or [obs.summary for obs in state.observations if obs.step_index == state.step_index]
         checks.append(
@@ -141,6 +163,64 @@ class VerificationEngine:
             )
             if not (state.replan_count > 0 or state.route_bias is not None or state.blocked_tools):
                 gaps.append("The runtime retried without changing strategy state.")
+
+        if state.architecture and state.architecture.browser_heavy:
+            browser_evidence = [
+                evidence
+                for result in state.last_tool_results
+                if result.tool_name in {
+                    "browser_adapter",
+                    "browser_search",
+                    "open_page",
+                    "extract_page_text",
+                    "verify_browser_goal",
+                }
+                for evidence in result.evidence
+            ]
+            checks.append(
+                VerificationCheck(
+                    name="browser_evidence_present",
+                    status="passed" if browser_evidence else "needs_attention",
+                    rationale="Browser-heavy paths should produce browser-grounded evidence.",
+                    evidence=browser_evidence[:4] or ["No browser-grounded evidence was recorded."],
+                    severity="high",
+                )
+            )
+            if not browser_evidence:
+                gaps.append("The browser-heavy path did not produce browser-grounded evidence.")
+
+        browser_goal_results = [
+            result for result in state.last_tool_results if result.tool_name == "verify_browser_goal"
+        ]
+        if browser_goal_results:
+            unsafe_browser_results = [
+                result
+                for result in browser_goal_results
+                if not bool(result.output.get("goal_reached"))
+                or bool(result.output.get("requires_confirmation"))
+                or bool(result.output.get("stop_before_submit_triggered"))
+            ]
+            checks.append(
+                VerificationCheck(
+                    name="browser_goal_verified",
+                    status="passed" if not unsafe_browser_results else "needs_attention",
+                    rationale="Major browser steps should verify that the intended goal state was reached safely.",
+                    evidence=[
+                        (
+                            f"{result.output.get('snapshot', {}).get('step_name', 'browser')}:"
+                            f"{result.output.get('status', 'unknown')}"
+                        )
+                        for result in browser_goal_results
+                    ],
+                    severity="high" if unsafe_browser_results else "info",
+                )
+            )
+            if unsafe_browser_results:
+                gaps.append("Browser goal verification did not confirm safe goal completion for every major step.")
+            if any(bool(result.output.get("requires_confirmation")) for result in browser_goal_results):
+                gaps.append("A browser action requires explicit approval before execution can continue.")
+            if any(bool(result.output.get("stop_before_submit_triggered")) for result in browser_goal_results):
+                gaps.append("The stop-before-submit guard triggered and paused the browser flow.")
 
         passed = sum(1 for check in checks if check.status == "passed")
         confidence = round(passed / len(checks), 2) if checks else 0.0

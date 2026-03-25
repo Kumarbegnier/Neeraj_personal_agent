@@ -48,9 +48,17 @@ AGENT_DESCRIPTORS = [
         responsibilities=[
             "Prepare browser-first evidence collection",
             "Open pages and extract structured text",
+            "Verify each major browser step before continuing",
             "Keep browsing inside the shared execution loop",
         ],
-        default_tools=["working_memory", "browser_search", "open_page", "extract_page_text"],
+        default_tools=[
+            "working_memory",
+            "browser_search",
+            "open_page",
+            "extract_page_text",
+            "verify_browser_goal",
+            "browser_adapter",
+        ],
     ),
     AgentDescriptor(
         key="file",
@@ -104,4 +112,3 @@ def get_agent_descriptor(key: str) -> AgentDescriptor:
 
 def get_agent_catalog() -> AgentCatalog:
     return AgentCatalog(agents=get_agent_descriptors())
-

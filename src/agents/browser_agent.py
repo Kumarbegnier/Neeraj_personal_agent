@@ -10,6 +10,9 @@ class BrowserAgent(BaseAgent):
         super().__init__(
             name=descriptor.display_name,
             description=descriptor.description,
-            instructions="You are the browser specialist. Use structured browser observations and stay approval-aware.",
+            instructions=(
+                "You are the browser specialist. Use structured browser observations, verify browser goals "
+                "after major steps, and stay approval-aware before risky actions."
+            ),
             tool_names=descriptor.default_tools,
         )

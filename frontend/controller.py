@@ -17,6 +17,7 @@ from .utils.state import (
     sync_health,
     sync_interaction,
     sync_plan,
+    sync_runtime_traces,
     sync_session_snapshot,
     sync_tool_catalog,
 )
@@ -72,6 +73,17 @@ def refresh_audit_events(state: MutableMapping[str, Any], client: ApiClient, lim
         return True
     except ApiClientError as exc:
         _record_client_error(state, "audit_error", exc)
+        return False
+
+
+def refresh_runtime_traces(state: MutableMapping[str, Any], client: ApiClient, limit: int = 25) -> bool:
+    clear_error(state)
+    try:
+        sync_runtime_traces(state, client.runtime_traces(limit=limit))
+        record_activity(state, "observability_refresh", "Fetched recent runtime observability traces.")
+        return True
+    except ApiClientError as exc:
+        _record_client_error(state, "observability_error", exc)
         return False
 
 
@@ -204,6 +216,7 @@ def _finalize_interaction(
     record_activity(state, activity_event, activity_detail)
     refresh_session_snapshot(state, client)
     refresh_audit_events(state, client)
+    refresh_runtime_traces(state, client)
 
 
 def _record_client_error(

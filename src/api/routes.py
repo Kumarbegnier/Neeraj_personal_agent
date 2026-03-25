@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, FastAPI
 from src.api.deps import get_gateway_headers, get_orchestration_service
 from src.core.config import get_settings
 from src.core.logging import configure_logging
+from src.runtime.models import RuntimeTrace
 from src.schemas.catalog import AgentCatalog, AuditLogResponse, ToolCatalog
 from src.schemas.chat import GatewayHeaders, InteractionResponse, SessionState, UserRequest
 from src.schemas.platform import (
@@ -36,6 +37,7 @@ def read_root():
             "/agents",
             "/tools",
             "/audit/logs",
+            "/observability/runtime-traces",
             "/sessions/{user_id}/{session_id}",
         ],
     }
@@ -82,6 +84,14 @@ def get_audit_logs(
     service: OrchestrationService = Depends(get_orchestration_service),
 ):
     return service.get_audit_logs(limit=limit)
+
+
+@router.get("/observability/runtime-traces", response_model=list[RuntimeTrace])
+def get_runtime_traces(
+    limit: int = 25,
+    service: OrchestrationService = Depends(get_orchestration_service),
+):
+    return service.get_runtime_traces(limit=limit)
 
 
 @router.get("/sessions/{user_id}/{session_id}", response_model=SessionState)

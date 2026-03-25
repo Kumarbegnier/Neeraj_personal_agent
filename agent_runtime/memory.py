@@ -48,12 +48,18 @@ class MemorySystem:
     ) -> dict[str, Any]:
         key = self._key(user_id, session_id)
         with self._lock:
-            merged = dict(self._preferences.get(key, {}))
+            existing_preferences = self._preferences.get(key, {})
+            merged = dict(existing_preferences)
+            changed_preferences = {
+                pref_key: pref_value
+                for pref_key, pref_value in incoming.items()
+                if existing_preferences.get(pref_key) != pref_value
+            }
             merged.update(incoming)
             self._preferences[key] = merged
 
             semantic = self._semantic.setdefault(key, [])
-            for pref_key, pref_value in incoming.items():
+            for pref_key, pref_value in changed_preferences.items():
                 semantic.append(
                     MemoryRecord(
                         memory_type="semantic",
@@ -345,6 +351,18 @@ class MemorySystem:
                         source="reflection",
                         salience=0.75,
                         tags=["reflection"],
+                    )
+                )
+
+            handoff_summary = metadata.get("handoff_summary")
+            if handoff_summary:
+                semantic.append(
+                    MemoryRecord(
+                        memory_type="semantic",
+                        content=f"Handoff summary: {handoff_summary}",
+                        source="handoff",
+                        salience=0.72,
+                        tags=["handoff", "continuity"],
                     )
                 )
 

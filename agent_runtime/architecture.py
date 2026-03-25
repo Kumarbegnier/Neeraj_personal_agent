@@ -34,6 +34,11 @@ ARCHITECTURE_STAGES = [
         description="Refreshes context, retrieved memory, goals, constraints, and working memory onto the live AgentState.",
     ),
     StageDescriptor(
+        name="Select Architecture",
+        component="ArchitectureSelector",
+        description="Chooses the execution pattern that best fits the task's complexity, grounding needs, tool intensity, risk, and parallelism.",
+    ),
+    StageDescriptor(
         name="Control",
         component="OrchestratorBrain",
         description="Computes control posture from the current AgentState rather than from the initial request alone.",

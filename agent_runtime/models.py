@@ -5,7 +5,11 @@ from enum import Enum
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from src.schemas.adaptive import ArchitectureDecision, LoopPhase, LoopState
+from src.schemas.context import ContextPacket
+from src.schemas.handoff import HandoffPacket
+from src.schemas.observability import AutonomyMetrics, RuntimeTrace, StepTrace
 from src.schemas.planner import PlannerOutput
 from src.schemas.reflection import ReflectionOutput
 
@@ -148,6 +152,9 @@ class ContextSnapshot(BaseModel):
     constraints: list[str] = Field(default_factory=list)
     requested_capabilities: list[str] = Field(default_factory=list)
     signals: ContextSignal = Field(default_factory=ContextSignal)
+    context_packet: ContextPacket | None = None
+    handoff_packet: HandoffPacket | None = None
+    execution_mode: str = "react"
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -165,6 +172,7 @@ class ControlDecision(BaseModel):
     memory_strategy: str = "retrieve-and-ground"
     verification_mode: str = "standard"
     needs_tooling: bool = True
+    architecture_mode: str | None = None
 
 
 class ReActCycle(BaseModel):
@@ -225,7 +233,38 @@ class SkillDescriptor(BaseModel):
     tools: list[str] = Field(default_factory=list)
 
 
+class ToolAuditMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    call_id: str | None = None
+    tool_name: str = ""
+    category: str = ""
+    risk_level: str = "low"
+    side_effect: str = "none"
+    dry_run: bool = False
+    retryable: bool = False
+    input_schema: str = ""
+    output_schema: str = ""
+    contract_version: str = "tool-quality-v1"
+    mcp_ready: bool = True
+    recorded_at: datetime = Field(default_factory=utc_now)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ToolVerificationResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: str = "pending"
+    summary: str = ""
+    postconditions_met: bool = False
+    checks: list[str] = Field(default_factory=list)
+    failures: list[str] = Field(default_factory=list)
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
 class ToolRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     call_id: str = Field(default_factory=new_id)
     tool_name: str
     purpose: str = ""
@@ -233,19 +272,32 @@ class ToolRequest(BaseModel):
     risk_level: str = "low"
     side_effect: str = "none"
     requires_confirmation: bool = False
+    dry_run: bool = False
+    retryable: bool | None = None
     verification_hint: str = ""
     expected_observation: str = ""
     priority: int = 5
+    audit_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ToolResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     call_id: str | None = None
     tool_name: str
     status: str
+    normalized_input: dict[str, Any] = Field(default_factory=dict)
     output: dict[str, Any] = Field(default_factory=dict)
     evidence: list[str] = Field(default_factory=list)
     risk_level: str = "low"
+    side_effect: str = "none"
+    retryable: bool = False
+    dry_run: bool = False
+    input_schema: str = ""
+    output_schema: str = ""
     blocked_reason: str | None = None
+    verification: ToolVerificationResult = Field(default_factory=ToolVerificationResult)
+    audit: ToolAuditMetadata = Field(default_factory=ToolAuditMetadata)
 
 
 class AgentDecision(BaseModel):
@@ -258,6 +310,32 @@ class AgentDecision(BaseModel):
     expected_deliverables: list[str] = Field(default_factory=list)
     claims_to_verify: list[str] = Field(default_factory=list)
     decision_notes: list[str] = Field(default_factory=list)
+
+
+class ReasoningStep(BaseModel):
+    objective: str
+    thought: str
+    reasoning_summary: str
+    action_strategy: str
+    candidate_tools: list[str] = Field(default_factory=list)
+    selected_skills: list[str] = Field(default_factory=list)
+    expected_observation: str = ""
+    should_replan: bool = False
+    replan_reason: str | None = None
+    stop_signal: str = "continue"
+    stop_reason: str | None = None
+
+
+class ActionDecision(BaseModel):
+    selected_tool_names: list[str] = Field(default_factory=list)
+    deferred_tool_names: list[str] = Field(default_factory=list)
+    rationale: str
+    expected_outcome: str = ""
+    requires_replan: bool = False
+    replan_reason: str | None = None
+
+
+ToolSelectionDecision = ActionDecision
 
 
 class ExecutionResult(BaseModel):
@@ -284,7 +362,7 @@ class VerificationCheck(BaseModel):
     severity: str = "info"
 
 
-class VerificationReport(BaseModel):
+class VerificationResult(BaseModel):
     status: str
     summary: str
     checks: list[VerificationCheck] = Field(default_factory=list)
@@ -295,10 +373,21 @@ class VerificationReport(BaseModel):
     retry_recommended: bool = False
 
 
+VerificationReport = VerificationResult
+
+
 class ReflectionReport(ReflectionOutput):
     status: str
     checks: list[str] = Field(default_factory=list)
     next_actions: list[str] = Field(default_factory=list)
+
+
+class StopDecision(BaseModel):
+    should_stop: bool = False
+    trigger: str = "continue"
+    reason: str = ""
+    ready_for_response: bool = False
+    requires_replan: bool = False
 
 
 class ModelExecutionRecord(BaseModel):
@@ -399,7 +488,31 @@ class StateTransition(BaseModel):
     adaptive_constraints: list[str] = Field(default_factory=list)
     blocked_tools: list[str] = Field(default_factory=list)
     route_bias: str | None = None
+    architecture_mode: str | None = None
+    loop_phase: str = "update_memory"
     termination_signal: str = "continue"
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class ReActStepTrace(BaseModel):
+    step_index: int
+    observe_summary: str = ""
+    context_summary: str = ""
+    architecture_mode: str | None = None
+    architecture_summary: str = ""
+    reasoning_summary: str = ""
+    action_summary: str = ""
+    verification_summary: str = ""
+    reflection_summary: str = ""
+    selected_route: str = "general"
+    selected_tools: list[str] = Field(default_factory=list)
+    observed_evidence: list[str] = Field(default_factory=list)
+    memory_checkpoint: str = ""
+    memory_checkpoints: list[str] = Field(default_factory=list)
+    loop_phases: list[LoopPhase] = Field(default_factory=list)
+    replan_triggered: bool = False
+    stop_trigger: str = "continue"
+    stop_reason: str = ""
     created_at: datetime = Field(default_factory=utc_now)
 
 
@@ -417,23 +530,34 @@ class AgentState(BaseModel):
     session: SessionPermissionState | None = None
     memory: MemorySnapshot = Field(default_factory=MemorySnapshot)
     context: ContextSnapshot | None = None
+    context_packet: ContextPacket | None = None
+    handoff_packet: HandoffPacket | None = None
+    architecture: ArchitectureDecision | None = None
     control: ControlDecision | None = None
+    loop_state: LoopState = Field(default_factory=LoopState)
     plan: ExecutionPlan | None = None
     task_graph: TaskGraph | None = None
     route: AgentRoute | None = None
     skills: list[SkillDescriptor] = Field(default_factory=list)
     decision: AgentDecision | None = None
+    reasoning: ReasoningStep | None = None
+    tool_selection: ActionDecision | None = None
     pending_tool_requests: list[ToolRequest] = Field(default_factory=list)
     last_tool_results: list[ToolResult] = Field(default_factory=list)
     tool_history: list[ToolResult] = Field(default_factory=list)
     execution: ExecutionResult | None = None
-    verification: VerificationReport | None = None
+    verification: VerificationResult | None = None
     reflection: ReflectionReport | None = None
+    stop_decision: StopDecision | None = None
     safety: SafetyReport | None = None
     model_runs: list[ModelExecutionRecord] = Field(default_factory=list)
     model_evaluations: list[ModelEvaluationRecord] = Field(default_factory=list)
     observations: list[ObservationRecord] = Field(default_factory=list)
     reasoning_notes: list[str] = Field(default_factory=list)
+    autonomy_metrics: AutonomyMetrics = Field(default_factory=AutonomyMetrics)
+    step_traces: list[StepTrace] = Field(default_factory=list)
+    runtime_trace: RuntimeTrace | None = None
+    react_trace: list[ReActStepTrace] = Field(default_factory=list)
     state_transitions: list[StateTransition] = Field(default_factory=list)
     trace: list[TraceEvent] = Field(default_factory=list)
     adaptive_constraints: list[str] = Field(default_factory=list)
@@ -454,14 +578,22 @@ class InteractionResponse(BaseModel):
     gateway: GatewayResult
     session: SessionPermissionState
     control: ControlDecision
+    context_packet: ContextPacket | None = None
+    handoff_packet: HandoffPacket | None = None
+    architecture: ArchitectureDecision | None = None
+    loop_state: LoopState = Field(default_factory=LoopState)
     plan: ExecutionPlan
     task_graph: TaskGraph
     skills: list[SkillDescriptor] = Field(default_factory=list)
-    verification: VerificationReport
+    verification: VerificationResult
     reflection: ReflectionReport
     safety: SafetyReport
     memory: MemorySnapshot
+    autonomy_metrics: AutonomyMetrics = Field(default_factory=AutonomyMetrics)
+    runtime_trace: RuntimeTrace | None = None
     trace: list[TraceEvent] = Field(default_factory=list)
+    react_trace: list[ReActStepTrace] = Field(default_factory=list)
+    step_traces: list[StepTrace] = Field(default_factory=list)
     tool_results: list[ToolResult] = Field(default_factory=list)
     state_transitions: list[StateTransition] = Field(default_factory=list)
     model_runs: list[ModelExecutionRecord] = Field(default_factory=list)

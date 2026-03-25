@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from src.memory.manager import MemoryManager
-from src.runtime.models import AgentState, InteractionResponse, SessionState, UserRequest
+from src.runtime.models import AgentState, InteractionResponse, RuntimeTrace, SessionState, UserRequest
 from src.safety.audit import AuditService
 from src.schemas.catalog import AuditLogResponse
+from src.services.observability_service import ObservabilityService
 
 
 class RuntimeLifecycleService:
@@ -13,9 +14,11 @@ class RuntimeLifecycleService:
         self,
         memory_manager: MemoryManager,
         audit_service: AuditService,
+        observability_service: ObservabilityService,
     ) -> None:
         self._memory_manager = memory_manager
         self._audit_service = audit_service
+        self._observability_service = observability_service
 
     def prepare_request(self, request: UserRequest) -> None:
         self._memory_manager.hydrate_request(request)
@@ -42,12 +45,19 @@ class RuntimeLifecycleService:
         response: InteractionResponse,
     ) -> None:
         self._memory_manager.persist_interaction(request, response)
+        self._observability_service.persist_runtime_trace(request, response.runtime_trace)
         self._record_trace_events(request, response)
         self._record_tool_events(response)
         self._record_model_events(response.model_runs, response.model_evaluations)
 
     def recent_audit_events(self, limit: int = 100) -> AuditLogResponse:
         return AuditLogResponse(events=self._audit_service.recent(limit=limit))
+
+    def recent_runtime_traces(self, limit: int = 25) -> list[RuntimeTrace]:
+        return self._observability_service.recent_runtime_traces(limit=limit)
+
+    def observability_health(self) -> dict[str, object]:
+        return self._observability_service.health()
 
     def _record_trace_events(
         self,

@@ -49,23 +49,42 @@ class TaskGraphEngine:
         for node in graph.nodes:
             if node.node_id == "agent_decide":
                 node.status = "completed"
-            elif node.node_id == "execute":
+            elif node.node_id == "reason":
                 node.status = "in_progress"
-                node.description = (
-                    f"Execute the {agent_name} branch while collecting tool evidence"
-                    f" from {tool_count} requested tool call(s)."
-                )
+                node.description = f"Reason about the {agent_name} branch before acting on {tool_count} candidate tool(s)."
 
         graph.state = "active"
-        graph.active_path = ["route", agent_name, "agent_decide", "execute"]
+        graph.active_path = ["route", agent_name, "agent_decide", "reason"]
         return graph
 
     def activate(self, graph: TaskGraph, agent_name: str) -> TaskGraph:
         return self.mark_decision(graph, agent_name)
 
+    def mark_reasoning(self, graph: TaskGraph, tool_names: list[str]) -> TaskGraph:
+        for node in graph.nodes:
+            if node.node_id == "reason":
+                node.status = "completed"
+            elif node.node_id == "select_tools":
+                node.status = "completed"
+                node.description = (
+                    f"Selected tool subset: {', '.join(tool_names)}."
+                    if tool_names
+                    else "No tools were selected for this action."
+                )
+            elif node.node_id == "act":
+                node.status = "in_progress"
+                node.description = (
+                    f"Execute the selected tool set while collecting evidence from "
+                    f"{len(tool_names)} tool call(s)."
+                )
+
+        graph.state = "active"
+        graph.active_path = ["reason", "select_tools", "act"]
+        return graph
+
     def finalize(self, graph: TaskGraph) -> TaskGraph:
         for node in graph.nodes:
             node.status = "completed"
         graph.state = "completed"
-        graph.active_path = ["execute", "verify", "reflect", "update_state", "finalize_response"]
+        graph.active_path = ["act", "verify", "reflect", "update_state", "finalize_response"]
         return graph

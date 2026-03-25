@@ -22,14 +22,18 @@ from frontend.components.primitives import (
 from frontend.utils.state import current_memory
 from frontend.view_models import (
     agent_rows,
+    autonomy_metrics_rows,
     architecture_rows,
     audit_rows,
     compact_text,
     conversation_rows,
+    format_ratio,
     humanize_label,
     memory_record_rows,
     plan_step_rows,
+    runtime_trace_rows,
     selected_agent_label,
+    step_trace_rows,
     state_transition_rows,
     streamlit_status_state,
     summarize_memory,
@@ -38,7 +42,7 @@ from frontend.view_models import (
     tool_result_rows,
     trace_rows,
 )
-from src.runtime.models import InteractionResponse, MemorySnapshot, SessionState, ToolResult
+from src.runtime.models import InteractionResponse, MemorySnapshot, RuntimeTrace, SessionState, ToolResult
 from src.runtime.workflow import StageDescriptor
 
 
@@ -254,6 +258,16 @@ def render_execution_panel(interaction: InteractionResponse | None) -> None:
             ),
         ]
     )
+    render_metric_strip(
+        [
+            MetricSpec("Autonomous", interaction.autonomy_metrics.autonomous_steps_count),
+            MetricSpec("Approvals", interaction.autonomy_metrics.approvals_requested),
+            MetricSpec("Retries", interaction.autonomy_metrics.retries_used),
+            MetricSpec("Recovery", interaction.autonomy_metrics.recovery_count_after_failure),
+            MetricSpec("Human ratio", format_ratio(interaction.autonomy_metrics.human_intervention_ratio)),
+            MetricSpec("Irreversible", interaction.autonomy_metrics.irreversible_actions_attempted),
+        ]
+    )
 
     with st.status(
         label=(
@@ -271,10 +285,23 @@ def render_execution_panel(interaction: InteractionResponse | None) -> None:
             for note in interaction.safety.notes[:4]:
                 st.write(f"- {note}")
 
-    tabs = st.tabs(["Tool Status", "Verification", "Reflection", "Safety"])
+    tabs = st.tabs(["Autonomy", "Tool Status", "Verification", "Reflection", "Safety"])
     with tabs[0]:
-        render_tool_result_cards(interaction.tool_results)
+        render_dataframe_card(
+            "Autonomy Metrics",
+            autonomy_metrics_rows(interaction.autonomy_metrics),
+            empty_message="No autonomy metrics are available for this interaction.",
+            caption="These counters summarize how independently the runtime progressed through the latest request.",
+        )
+        render_dataframe_card(
+            "Step Trace",
+            step_trace_rows(interaction.step_traces),
+            empty_message="No per-step observability records are available for this interaction.",
+            caption="Each step captures the loop phase, autonomy posture, and control outcome.",
+        )
     with tabs[1]:
+        render_tool_result_cards(interaction.tool_results)
+    with tabs[2]:
         left, right = st.columns(2, gap="large")
         with left:
             render_text_card(
@@ -298,7 +325,7 @@ def render_execution_panel(interaction: InteractionResponse | None) -> None:
                 interaction.verification.unverified_claims,
                 empty_message="No unverified claims were reported.",
             )
-    with tabs[2]:
+    with tabs[3]:
         left, right = st.columns(2, gap="large")
         with left:
             render_text_card(
@@ -322,7 +349,7 @@ def render_execution_panel(interaction: InteractionResponse | None) -> None:
                 interaction.reflection.next_actions,
                 empty_message="No follow-up actions were recorded.",
             )
-    with tabs[3]:
+    with tabs[4]:
         render_json_card(
             "Safety Report",
             interaction.safety.model_dump(),
@@ -364,12 +391,13 @@ def render_logs_panel(
     interaction: InteractionResponse | None,
     activity_log: Sequence[dict[str, str]],
     audit_events: Sequence[AuditEvent],
+    runtime_traces: Sequence[RuntimeTrace],
 ) -> None:
     render_section_intro(
         "Logs / Audit",
         "Inspect traces, tool events, state transitions, backend audit records, and frontend activity.",
     )
-    if interaction is None and not activity_log and not audit_events:
+    if interaction is None and not activity_log and not audit_events and not runtime_traces:
         render_empty_state(
             "No logs yet.",
             "Run a prompt to capture trace events, tool status, and frontend activity.",
@@ -379,13 +407,14 @@ def render_logs_panel(
     render_metric_strip(
         [
             MetricSpec("Trace events", len(interaction.trace) if interaction is not None else 0),
-            MetricSpec("Tool logs", len(interaction.tool_results) if interaction is not None else 0),
+            MetricSpec("Step traces", len(interaction.step_traces) if interaction is not None else 0),
             MetricSpec("Transitions", len(interaction.state_transitions) if interaction is not None else 0),
+            MetricSpec("Recent runs", len(runtime_traces)),
             MetricSpec("Audit records", len(audit_events)),
         ]
     )
 
-    tabs = st.tabs(["Runtime Trace", "Tool Logs", "State Transitions", "Audit Trail", "Frontend Activity"])
+    tabs = st.tabs(["Event Trace", "Step Trace", "Recent Runs", "Tool Logs", "State Transitions", "Audit Trail", "Frontend Activity"])
     with tabs[0]:
         if interaction is not None:
             render_dataframe_or_caption(
@@ -397,12 +426,25 @@ def render_logs_panel(
     with tabs[1]:
         if interaction is not None:
             render_dataframe_or_caption(
+                step_trace_rows(interaction.step_traces),
+                "No step-level observability records were captured for the latest interaction.",
+            )
+        else:
+            st.caption("No step trace available.")
+    with tabs[2]:
+        render_dataframe_or_caption(
+            runtime_trace_rows(runtime_traces),
+            "No persisted runtime traces are available yet.",
+        )
+    with tabs[3]:
+        if interaction is not None:
+            render_dataframe_or_caption(
                 tool_result_rows(interaction.tool_results),
                 "No tool events were recorded for the latest interaction.",
             )
         else:
             st.caption("No tool events available.")
-    with tabs[2]:
+    with tabs[4]:
         if interaction is not None:
             render_dataframe_or_caption(
                 state_transition_rows(interaction.state_transitions),
@@ -410,12 +452,12 @@ def render_logs_panel(
             )
         else:
             st.caption("No state transitions available.")
-    with tabs[3]:
+    with tabs[5]:
         render_dataframe_or_caption(
             audit_rows(audit_events),
             "No backend audit events have been recorded yet.",
         )
-    with tabs[4]:
+    with tabs[6]:
         render_dataframe_or_caption(
             list(activity_log),
             "No frontend activity has been recorded yet.",
@@ -533,6 +575,15 @@ def render_home_dashboard(
             MetricSpec("Risk", humanize_label(str(state["risk_level"]))),
             MetricSpec("Messages", len(state["messages"])),
             MetricSpec("Approval", "Required" if state["approval_required"] else "Clear"),
+            MetricSpec(
+                "Autonomy",
+                (
+                    f"{current_interaction.autonomy_metrics.autonomous_steps_count}/"
+                    f"{current_interaction.autonomy_metrics.total_steps}"
+                    if current_interaction is not None
+                    else "N/A"
+                ),
+            ),
         ]
     )
 

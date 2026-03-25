@@ -35,6 +35,7 @@ class OrchestratorBrain:
             user_prompt="\n".join(
                 [
                     f"User message: {state.request.message}",
+                    f"Architecture mode: {state.architecture.mode.value if state.architecture else ''}",
                     f"Active goals: {json.dumps(context.active_goals if context else [], ensure_ascii=True)}",
                     f"Requested capabilities: {json.dumps(context.requested_capabilities if context else [], ensure_ascii=True)}",
                     f"Recent observations: {json.dumps(recent_observation_summaries(state, limit=4), ensure_ascii=True)}",
@@ -58,19 +59,30 @@ class OrchestratorBrain:
         memory_bias = self._memory_bias(state)
         intent = self._derive_intent(lowered, context.active_goals, context.requested_capabilities, memory_bias)
         urgency = "high" if any(word in lowered for word in ("urgent", "asap", "immediately")) else "normal"
-        preferred_agent = self._preferred_agent(lowered, context.active_goals, context.requested_capabilities, state, memory_bias)
+        preferred_agent = (
+            state.architecture.primary_agent
+            if state.architecture is not None
+            else self._preferred_agent(lowered, context.active_goals, context.requested_capabilities, state, memory_bias)
+        )
 
         complexity = context.signals.complexity
         risk_level = context.signals.risk_level
         reasoning_mode = "deliberate-multistep" if complexity == "high" or state.needs_replan else "directed"
         coordination_pattern = (
-            "modular-orchestration"
+            state.architecture.mode.value
+            if state.architecture is not None
+            else "modular-orchestration"
             if context.signals.collaboration_mode == "modular-orchestration" or state.route_bias is not None
             else "single-specialist"
         )
         verification_mode = (
             "strict"
-            if complexity == "high" or "verification" in context.requested_capabilities or state.retry_count > 0
+            if (
+                complexity == "high"
+                or "verification" in context.requested_capabilities
+                or state.retry_count > 0
+                or bool(state.architecture and state.architecture.requires_verifier)
+            )
             else "standard"
         )
         needs_tooling = any(
@@ -97,6 +109,7 @@ class OrchestratorBrain:
             memory_strategy="retrieve-rank-summarize",
             verification_mode=verification_mode,
             needs_tooling=needs_tooling,
+            architecture_mode=state.architecture.mode.value if state.architecture else None,
         )
 
     def _derive_intent(

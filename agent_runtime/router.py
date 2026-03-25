@@ -32,6 +32,10 @@ class AgentRouter:
 
         if control.preferred_agent:
             scores[control.preferred_agent] = scores.get(control.preferred_agent, 0.0) + 2.0
+        if state.architecture is not None:
+            scores[state.architecture.primary_agent] = scores.get(state.architecture.primary_agent, 0.0) + 2.5
+            for supporting_agent in state.architecture.supporting_agents:
+                scores[supporting_agent] = scores.get(supporting_agent, 0.0) + 0.7
 
         for capability in context.requested_capabilities:
             if capability == "communication":
@@ -69,11 +73,20 @@ class AgentRouter:
             if state.reflection and "unsupported" in " ".join(state.reflection.repairs).lower():
                 scores["research"] += 0.4
                 scores["coding"] += 0.4
+        if state.architecture is not None and state.architecture.browser_heavy:
+            scores["web"] += 1.4
+            scores["research"] += 0.5
+        if state.architecture is not None and state.architecture.mode.value == "multi_agent_research":
+            scores["research"] += 1.4
+        if state.architecture is not None and state.architecture.critic_lane:
+            scores["communication"] += 1.4
+            scores["general"] += 0.8
 
         winner, confidence = max(scores.items(), key=lambda item: item[1])
         rationale = (
             f"Selected '{winner}' using current capabilities {context.requested_capabilities}, "
-            f"memory scores {memory_scores}, and plan strategy '{plan.decomposition_strategy}'."
+            f"memory scores {memory_scores}, plan strategy '{plan.decomposition_strategy}', "
+            f"and architecture '{state.architecture.mode.value if state.architecture else 'none'}'."
         )
         return AgentRoute(agent_name=winner, rationale=rationale, confidence=round(min(0.95, 0.4 + confidence / 5), 2))
 

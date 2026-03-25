@@ -57,26 +57,34 @@ class Planner:
         react_cycles = [
             ReActCycle(
                 thought="Observe the latest user objective, retrieved memory, and prior attempt outcomes.",
-                action="Refresh working memory and identify what changed since the previous step.",
+                action="Refresh working memory and identify what changed since the previous iteration.",
                 observation=(
                     f"Loaded {len(context.memory.retrieved)} retrieved memories and "
                     f"{len(state.observations)} accumulated observations."
                 ),
             ),
             ReActCycle(
-                thought="Control the loop from the current state rather than replaying a fixed pipeline.",
-                action="Choose or revise the control posture, specialist route, and verification mode.",
+                thought="Reason over the current state rather than replaying a fixed pipeline.",
+                action="Choose or revise the control posture, specialist route, and next action strategy.",
                 observation=(
                     f"Preferred specialist is '{control.preferred_agent or 'general'}' with "
                     f"replan_count={state.replan_count} and retry_count={state.retry_count}."
                 ),
             ),
             ReActCycle(
-                thought="Preserve a closed loop by making failure information causally binding.",
-                action="Convert verification gaps and reflection repairs into constraints for the next action.",
+                thought="Act with the smallest useful set of tools that can create evidence.",
+                action="Select the next tool subset and execute it against the current objective.",
+                observation=(
+                    f"Requested capability count is {len(context.requested_capabilities)} and "
+                    f"blocked_tools count is {len(state.blocked_tools)}."
+                ),
+            ),
+            ReActCycle(
+                thought="Reflect on the result so failure information becomes causally binding.",
+                action="Convert verification gaps and reflection repairs into constraints for the next iteration.",
                 observation=(
                     f"Adaptive constraints count is {len(state.adaptive_constraints)} and "
-                    f"blocked_tools count is {len(state.blocked_tools)}."
+                    f"retry_count is {state.retry_count}."
                 ),
             ),
         ]
@@ -125,19 +133,39 @@ class Planner:
             ),
             PlanStep(
                 name="agent_decide",
-                description="Let the routed specialist convert the current state into a tool-backed action decision.",
+                description="Let the routed specialist prepare candidate actions and tool requests from the current state.",
                 owner="router_executor",
                 depends_on=["route"],
                 step_type="decision",
-                success_criteria=["Tool selection reflects current route, constraints, and blocked tools."],
-                failure_modes=["The agent chooses tools that ignore reflection repairs or blocked-tool constraints."],
-                verification_focus=["Agent decision changes when route bias, memory, or constraints change."],
+                success_criteria=["Candidate tools reflect the current route, constraints, and blocked tools."],
+                failure_modes=["The agent proposes tools that ignore reflection repairs or blocked-tool constraints."],
+                verification_focus=["Candidate action proposals change when route bias, memory, or constraints change."],
             ),
             PlanStep(
-                name="execute",
-                description="Execute the chosen tool set, collect observations, and update the AgentState.",
-                owner="execution",
+                name="reason",
+                description="Reason over the latest state, candidate tools, and plan to choose the next action strategy.",
+                owner="reasoning",
                 depends_on=["agent_decide"],
+                step_type="reasoning",
+                success_criteria=["Reasoning justifies the next action and can trigger replanning when needed."],
+                failure_modes=["Reasoning ignores available evidence or cannot explain tool choice."],
+                verification_focus=["The next action is causally grounded in current observations and memory."],
+            ),
+            PlanStep(
+                name="select_tools",
+                description="Select the smallest useful subset of tools for the next action from the candidate set.",
+                owner="tool_selection",
+                depends_on=["reason"],
+                step_type="tool_selection",
+                success_criteria=["Tool selection follows the current reasoning step and excludes blocked tools."],
+                failure_modes=["Tool selection keeps low-value tools or fails to request replanning when stuck."],
+                verification_focus=["The selected tools align with the current reasoning strategy."],
+            ),
+            PlanStep(
+                name="act",
+                description="Execute the selected tools, collect observations, and update the AgentState.",
+                owner="execution",
+                depends_on=["select_tools"],
                 step_type="execution",
                 success_criteria=["Actions create observable evidence or explicit gates."],
                 failure_modes=["Execution repeats blocked tools or yields no new observations."],
@@ -149,7 +177,7 @@ class Planner:
                 name="verify",
                 description="Verify that recent claims and progress are grounded in evidence.",
                 owner="verification",
-                depends_on=["execute"],
+                depends_on=["act"],
                 step_type="verification",
                 success_criteria=["Failed verification leads to retry or replan."],
                 failure_modes=["Verification is ignored and execution continues unchanged."],
@@ -264,6 +292,8 @@ class Planner:
     def _decomposition_strategy(self, state: AgentState) -> str:
         if state.retry_count > 0 or state.needs_replan:
             return "adaptive retry loop"
+        if state.architecture is not None:
+            return state.architecture.loop_strategy.replace("_", " ")
         if state.context and state.context.signals.collaboration_mode == "modular-orchestration":
             return "hierarchical modular"
         if state.control and state.control.complexity == "high":
@@ -348,7 +378,7 @@ class Planner:
         for step in fallback_steps:
             matched = subtask_map.get(step.name)
             if matched is None:
-                if step.name == "execute" and required_tools:
+                if step.name == "act" and required_tools:
                     merged_steps.append(
                         step.model_copy(
                             update={

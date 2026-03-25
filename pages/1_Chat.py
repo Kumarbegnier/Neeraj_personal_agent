@@ -14,6 +14,7 @@ from frontend.controller import (
     approve_pending_request,
     clear_workspace,
     preview_plan,
+    refresh_runtime_traces,
     refresh_session_snapshot,
     submit_chat_prompt,
 )
@@ -36,6 +37,7 @@ toolbar = st.columns(4)
 if toolbar[0].button("Refresh session", use_container_width=True):
     with st.spinner("Refreshing session snapshot..."):
         refresh_session_snapshot(st.session_state, service)
+        refresh_runtime_traces(st.session_state, service)
     st.rerun()
 if toolbar[1].button(
     "Preview last plan",
@@ -88,4 +90,5 @@ with diagnostics:
             st.session_state.get("last_interaction"),
             st.session_state.get("activity_log", []),
             st.session_state.get("audit_events", []),
+            st.session_state.get("runtime_traces", []),
         )

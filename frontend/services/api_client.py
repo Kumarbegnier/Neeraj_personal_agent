@@ -7,7 +7,7 @@ import httpx
 
 from src.schemas.catalog import AgentCatalog, AuditLogResponse, ToolCatalog
 from src.schemas.platform import ChatResponse, ExecuteResponse, HealthResponse, PlanResponse
-from src.runtime.models import InteractionResponse, SessionState
+from src.runtime.models import InteractionResponse, RuntimeTrace, SessionState
 from src.runtime.workflow import StageDescriptor
 from src.schemas.platform import ArchitectureResponse
 
@@ -69,6 +69,10 @@ class ApiClient:
         payload = self._request("GET", f"/audit/logs?limit={limit}")
         return AuditLogResponse.model_validate(payload)
 
+    def runtime_traces(self, limit: int = 25) -> list[RuntimeTrace]:
+        payload = self._request("GET", f"/observability/runtime-traces?limit={limit}")
+        return [RuntimeTrace.model_validate(item) for item in payload]
+
     def session_state(self, user_id: str, session_id: str) -> SessionState:
         payload = self._request("GET", f"/sessions/{user_id}/{session_id}")
         return SessionState.model_validate(payload)
@@ -85,7 +89,7 @@ class ApiClient:
         payload = self._request("POST", "/execute", json=request.as_payload())
         return ExecuteResponse.model_validate(payload).interaction
 
-    def _request(self, method: str, path: str, json: dict[str, Any] | None = None) -> dict[str, Any]:
+    def _request(self, method: str, path: str, json: dict[str, Any] | None = None) -> Any:
         try:
             with httpx.Client(base_url=self._base_url, timeout=self._timeout_seconds) as client:
                 response = client.request(method=method, url=path, json=json)

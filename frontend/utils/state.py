@@ -10,7 +10,7 @@ from src.schemas.platform import HealthResponse, PlanResponse
 
 from frontend.config import FrontendConfig
 from frontend.view_models import summarize_memory
-from src.runtime.models import InteractionResponse, MemorySnapshot, SessionState
+from src.runtime.models import InteractionResponse, MemorySnapshot, RuntimeTrace, SessionState
 
 
 def _utc_now() -> str:
@@ -54,6 +54,7 @@ def ensure_session_state(state: MutableMapping[str, Any], config: FrontendConfig
         "agent_catalog": None,
         "tool_catalog": None,
         "audit_events": [],
+        "runtime_traces": [],
     }
     for key, value in defaults.items():
         state.setdefault(key, value)
@@ -147,6 +148,13 @@ def sync_audit_events(
     state["audit_events"] = events
 
 
+def sync_runtime_traces(
+    state: MutableMapping[str, Any],
+    traces: list[RuntimeTrace],
+) -> None:
+    state["runtime_traces"] = traces
+
+
 def current_memory(state: MutableMapping[str, Any]) -> MemorySnapshot | None:
     interaction = state.get("last_interaction")
     if interaction is not None:
@@ -170,6 +178,7 @@ def reset_workspace(state: MutableMapping[str, Any], *, new_session: bool = Fals
     state["last_interaction"] = None
     state["last_session_snapshot"] = None
     state["audit_events"] = []
+    state["runtime_traces"] = []
     state["selected_agent"] = "Awaiting first routing decision"
     state["agent_status"] = "idle"
     state["risk_level"] = "unknown"

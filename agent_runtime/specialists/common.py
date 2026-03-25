@@ -25,6 +25,7 @@ def tool_request(
     requires_confirmation: bool = False,
     verification_hint: str = "",
     expected_observation: str = "",
+    audit_metadata: dict | None = None,
 ) -> ToolRequest:
     return ToolRequest(
         tool_name=tool_name,
@@ -36,6 +37,7 @@ def tool_request(
         requires_confirmation=requires_confirmation,
         verification_hint=verification_hint,
         expected_observation=expected_observation,
+        audit_metadata=audit_metadata or {},
     )
 
 
@@ -50,7 +52,7 @@ def unresolved_results(results: list[ToolResult]) -> list[str]:
     return [
         f"{result.tool_name}:{result.status}"
         for result in results
-        if result.status in {"error", "gated", "unavailable"}
+        if result.status in {"error", "gated", "unavailable", "invalid_input", "invalid_output", "verification_failed"}
     ]
 
 

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 def _utc_now() -> datetime:
@@ -16,6 +16,8 @@ def _new_event_id() -> str:
 
 
 class AgentDescriptor(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     key: str
     display_name: str
     role: str
@@ -25,23 +27,35 @@ class AgentDescriptor(BaseModel):
 
 
 class AgentCatalog(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     agents: list[AgentDescriptor] = Field(default_factory=list)
 
 
 class ToolDescriptor(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str
     category: str
     description: str
     risk_level: str = "low"
     side_effect: str = "none"
     structured_output: bool = True
+    retryable: bool = True
+    supports_dry_run: bool = True
+    mcp_ready: bool = True
+    contract_version: str = "tool-quality-v1"
 
 
 class ToolCatalog(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     tools: list[ToolDescriptor] = Field(default_factory=list)
 
 
 class AuditEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     event_id: str = Field(default_factory=_new_event_id)
     event: str
     payload: dict[str, Any] = Field(default_factory=dict)
@@ -49,5 +63,6 @@ class AuditEvent(BaseModel):
 
 
 class AuditLogResponse(BaseModel):
-    events: list[AuditEvent] = Field(default_factory=list)
+    model_config = ConfigDict(extra="forbid")
 
+    events: list[AuditEvent] = Field(default_factory=list)

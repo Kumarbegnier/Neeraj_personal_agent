@@ -9,12 +9,14 @@ from src.runtime.models import (
     AgentState,
     GatewayHeaders,
     InteractionResponse,
+    RuntimeTrace,
     SessionState,
     UserRequest,
 )
 from src.schemas.catalog import AgentCatalog, AuditLogResponse, ToolCatalog
 from src.core.config import get_settings
 from src.safety.audit import AuditService
+from src.services.observability_service import ObservabilityService
 from src.services.runtime_lifecycle import RuntimeLifecycleService
 from src.services.llm_service import LLMService
 from src.tools import get_tool_catalog
@@ -29,6 +31,7 @@ class OrchestrationService:
         episodic_store: EpisodicStore | None = None,
         semantic_store: SemanticStore | None = None,
         audit_service: AuditService | None = None,
+        observability_service: ObservabilityService | None = None,
         lifecycle_service: RuntimeLifecycleService | None = None,
     ) -> None:
         self.settings = get_settings()
@@ -36,6 +39,7 @@ class OrchestrationService:
         self.episodic_store = episodic_store or EpisodicStore()
         self.semantic_store = semantic_store or SemanticStore()
         self.audit_service = audit_service or AuditService()
+        self.observability_service = observability_service or ObservabilityService(self.audit_service)
         self._orchestrator = orchestrator or build_default_orchestrator(self.llm_service)
         self.memory_manager = MemoryManager(
             self._orchestrator.memory_system,
@@ -46,6 +50,7 @@ class OrchestrationService:
         self.lifecycle = lifecycle_service or RuntimeLifecycleService(
             memory_manager=self.memory_manager,
             audit_service=self.audit_service,
+            observability_service=self.observability_service,
         )
 
     def get_architecture(self):
@@ -60,6 +65,9 @@ class OrchestrationService:
     def get_audit_logs(self, limit: int = 100) -> AuditLogResponse:
         return self.lifecycle.recent_audit_events(limit=limit)
 
+    def get_runtime_traces(self, limit: int = 25) -> list[RuntimeTrace]:
+        return self.lifecycle.recent_runtime_traces(limit=limit)
+
     def health(self) -> dict[str, Any]:
         return {
             "name": self.settings.app_name,
@@ -69,6 +77,7 @@ class OrchestrationService:
             "memory": self.episodic_store.health(),
             "semantic_memory": self.semantic_store.health(),
             "audit": self.audit_service.health(),
+            "observability": self.lifecycle.observability_health(),
         }
 
     def get_session_state(self, user_id: str, session_id: str) -> SessionState:
